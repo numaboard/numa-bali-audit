@@ -1,0 +1,2569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMA Bali — Audit System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0d0f14;--bg2:#13161e;--bg3:#1a1e2a;--bg4:#222636;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --text:#f0f2f7;--text2:#8890a8;--text3:#555e78;
+  --green:#22c987;--green-dim:rgba(34,201,135,0.12);
+  --amber:#f5a623;--amber-dim:rgba(245,166,35,0.12);
+  --red:#f05252;--red-dim:rgba(240,82,82,0.12);
+  --blue:#4d8ef0;--blue-dim:rgba(77,142,240,0.12);
+  --accent:#22c987;--radius:12px;--radius-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:14px;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* LANGUAGE SWITCHER */
+.lang-switcher{display:flex;gap:4px;}
+.lang-btn{padding:4px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;transition:all .15s;letter-spacing:.04em;}
+.lang-btn:hover{color:var(--text);border-color:var(--border2);}
+.lang-btn.active{background:var(--green-dim);color:var(--accent);border-color:var(--accent);}
+.login-lang{display:flex;gap:6px;justify-content:center;margin-bottom:20px;}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.login-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:400px;}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+.login-logo-mark{width:44px;height:44px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#0d0f14;}
+.login-logo h1{font-size:18px;font-weight:600;}
+.login-logo span{font-size:12px;color:var(--text3);display:block;margin-top:1px;}
+.login-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.login-select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:14px;color:var(--text);font-family:'DM Sans',sans-serif;margin-bottom:16px;appearance:none;cursor:pointer;}
+.login-select:focus{outline:none;border-color:var(--accent);}
+.pin-row{display:flex;gap:10px;margin-bottom:24px;justify-content:center;}
+.pin-dot{width:48px;height:56px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;transition:all .15s;color:var(--text);}
+.pin-dot.filled{border-color:var(--accent);color:var(--accent);}
+.pin-dot.error{border-color:var(--red);animation:shake .3s ease;}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+.num-btn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:18px;font-weight:500;color:var(--text);cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
+.num-btn:hover{background:var(--bg4);border-color:var(--border2);}
+.num-btn:active{transform:scale(0.96);}
+.num-btn.del{font-size:14px;color:var(--text3);}
+.login-error{font-size:12px;color:var(--red);text-align:center;height:18px;margin-top:-4px;}
+.role-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.role-admin{background:rgba(77,142,240,.15);color:var(--blue);}
+.role-manager{background:rgba(34,201,135,.15);color:var(--green);}
+.role-area{background:rgba(245,166,35,.15);color:var(--amber);}
+.role-investor{background:rgba(240,82,82,.1);color:var(--text2);}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* APP SHELL */
+.app-shell{display:none;min-height:100vh;}
+.app-shell.visible{display:flex;}
+.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s;}
+.main{margin-left:220px;flex:1;min-width:0;}
+.topbar{height:56px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:50;}
+.content{padding:28px 28px 60px;}
+
+/* SIDEBAR */
+.sb-logo{padding:20px 18px 16px;border-bottom:1px solid var(--border);}
+.sb-logo-mark{width:36px;height:36px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0d0f14;margin-bottom:8px;}
+.sb-logo h2{font-size:13px;font-weight:600;}
+.sb-logo span{font-size:11px;color:var(--text3);}
+.sb-section{padding:10px 10px 4px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;}
+.sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);margin:1px 8px;cursor:pointer;font-size:13px;color:var(--text2);transition:all .15s;}
+.sb-item:hover{background:var(--bg3);color:var(--text);}
+.sb-item.active{background:var(--green-dim);color:var(--green);}
+.sb-score{margin-left:auto;font-size:11px;font-weight:500;padding:1px 6px;border-radius:4px;}
+.sb-score.red{background:var(--red-dim);color:var(--red);}
+.sb-score.amber{background:var(--amber-dim);color:var(--amber);}
+.sb-score.green{background:var(--green-dim);color:var(--green);}
+.sb-bottom{margin-top:auto;padding:12px;border-top:1px solid var(--border);}
+.sb-user{display:flex;align-items:center;gap:8px;padding:8px 4px;margin-bottom:8px;}
+.sb-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;}
+.sb-user-info{flex:1;min-width:0;}
+.sb-user-name{font-size:12px;font-weight:500;color:var(--text);}
+.sb-user-role{font-size:10px;color:var(--text3);}
+.logout-btn{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-family:inherit;transition:all .15s;}
+.logout-btn:hover{color:var(--red);border-color:rgba(240,82,82,.3);}
+
+/* TOPBAR */
+.topbar-title{font-size:14px;font-weight:500;}
+.topbar-date{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;border:none;transition:all .15s;}
+.btn-primary{background:var(--accent);color:#0d0f14;}
+.btn-primary:hover{background:#1db87a;}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2);}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(240,82,82,.2);}
+.btn-tg{background:rgba(0,136,204,.15);color:#29b6f6;border:1px solid rgba(0,136,204,.25);}
+.btn-tg:hover{background:rgba(0,136,204,.25);}
+.btn-start{background:linear-gradient(135deg,#22c987,#1aaa70);color:#0d0f14;font-size:13px;padding:10px 20px;border-radius:10px;font-weight:600;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+/* PAGES */
+.page{display:none;}
+.page.active{display:block;}
+
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi-card.green::before{background:var(--green);}
+.kpi-card.amber::before{background:var(--amber);}
+.kpi-card.red::before{background:var(--red);}
+.kpi-card.blue::before{background:var(--blue);}
+.kpi-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.kpi-value{font-size:28px;font-weight:600;line-height:1;margin-bottom:4px;}
+.kpi-value.green{color:var(--green);}
+.kpi-value.amber{color:var(--amber);}
+.kpi-value.red{color:var(--red);}
+.kpi-value.blue{color:var(--blue);}
+.kpi-sub{font-size:11px;color:var(--text3);}
+
+/* AREA CARDS */
+.areas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px;}
+.area-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .2s;}
+.area-card:hover{border-color:var(--border2);background:var(--bg3);transform:translateY(-1px);}
+.area-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
+.area-name{font-size:14px;font-weight:500;margin-bottom:2px;}
+.area-sub{font-size:11px;color:var(--text3);}
+.area-score-wrap{display:flex;align-items:flex-end;gap:10px;margin-top:4px;}
+.area-big-score{font-size:32px;font-weight:600;line-height:1;}
+.area-score-right{flex:1;}
+.bar-track{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:6px;}
+.bar-fill{height:100%;border-radius:3px;transition:width .4s ease;}
+.area-meta{display:flex;justify-content:space-between;align-items:center;}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.04em;}
+.badge-failed{background:var(--red-dim);color:var(--red);}
+.badge-border{background:var(--amber-dim);color:var(--amber);}
+.badge-passed{background:var(--green-dim);color:var(--green);}
+.issues-count{font-size:11px;color:var(--text3);}
+
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+.chart-title{font-size:13px;font-weight:500;margin-bottom:16px;color:var(--text2);}
+.chart-wrap{position:relative;height:200px;}
+
+/* AUDIT TABLE */
+.audit-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+.audit-header-left h1{font-size:18px;font-weight:600;}
+.audit-header-left p{font-size:12px;color:var(--text3);margin-top:2px;}
+.audit-stats{display:flex;gap:20px;flex-wrap:wrap;}
+.audit-stat{text-align:center;}
+.audit-stat-val{font-size:22px;font-weight:600;}
+.audit-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.table-toolbar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.filter-btn{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:inherit;transition:all .15s;}
+.filter-btn:hover{border-color:var(--border2);color:var(--text);}
+.filter-btn.active{border-color:var(--accent);color:var(--accent);background:var(--green-dim);}
+table{width:100%;border-collapse:collapse;}
+thead th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:var(--bg3);white-space:nowrap;}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
+tbody tr:last-child{border-bottom:none;}
+tbody tr:hover{background:var(--bg3);}
+tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
+.level-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;}
+.level-critical{background:var(--red-dim);color:var(--red);}
+.level-moderate{background:var(--amber-dim);color:var(--amber);}
+.level-low{background:var(--bg4);color:var(--text3);}
+.score-stepper{display:inline-flex;align-items:center;gap:6px;}
+.score-stepper button{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .1s;font-family:inherit;}
+.score-stepper button:hover{border-color:var(--border2);color:var(--text);}
+.score-stepper button:disabled{opacity:.3;cursor:not-allowed;}
+.score-val{font-size:14px;font-weight:600;min-width:20px;text-align:center;}
+.note-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text);font-family:inherit;width:160px;}
+.note-input:focus{outline:none;border-color:var(--accent);}
+.note-input:disabled{opacity:.4;cursor:not-allowed;}
+.id-tag{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.inline-bar{display:inline-flex;align-items:center;gap:8px;width:100px;}
+.inline-bar-track{flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.inline-bar-fill{height:100%;border-radius:2px;}
+
+/* ---- START AUDIT PAGE ---- */
+.start-hero{text-align:center;padding:40px 20px 32px;}
+.start-hero h1{font-size:26px;font-weight:600;margin-bottom:8px;}
+.start-hero p{font-size:14px;color:var(--text3);max-width:480px;margin:0 auto 28px;}
+.audit-mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:32px;}
+.audit-mode-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:all .2s;text-align:left;}
+.audit-mode-card:hover{border-color:var(--border2);transform:translateY(-1px);}
+.audit-mode-card.selected{border-color:var(--accent);background:var(--green-dim);}
+.audit-mode-icon{font-size:24px;margin-bottom:10px;}
+.audit-mode-title{font-size:14px;font-weight:500;margin-bottom:4px;}
+.audit-mode-sub{font-size:11px;color:var(--text3);}
+
+/* PROGRESS BAR */
+.progress-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px;}
+.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.progress-header h3{font-size:14px;font-weight:500;}
+.progress-pct{font-size:28px;font-weight:700;color:var(--accent);}
+.progress-track{height:12px;background:var(--bg4);border-radius:6px;overflow:hidden;margin-bottom:12px;position:relative;}
+.progress-fill{height:100%;border-radius:6px;transition:width .5s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#22c987,#1aaa70);}
+.progress-milestones{display:flex;justify-content:space-between;margin-bottom:14px;}
+.milestone{text-align:center;flex:1;position:relative;}
+.milestone::before{content:'';position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:1px;height:8px;background:var(--border2);}
+.milestone-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
+.milestone-val{font-size:10px;color:var(--text2);}
+.area-progress-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
+.area-prog-item{background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;}
+.area-prog-icon{font-size:16px;}
+.area-prog-info{flex:1;min-width:0;}
+.area-prog-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.area-prog-bar{height:3px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;}
+.area-prog-fill{height:100%;border-radius:2px;transition:width .4s;}
+.area-prog-count{font-size:10px;color:var(--text3);white-space:nowrap;}
+.area-prog-check{font-size:14px;}
+
+/* HISTORY */
+.history-list{display:flex;flex-direction:column;gap:12px;}
+.history-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .15s;}
+.history-item:hover{border-color:var(--border2);}
+.history-date{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;min-width:90px;}
+.history-score{font-size:22px;font-weight:600;min-width:60px;}
+
+/* FLAGS */
+.flags-list{display:flex;flex-direction:column;gap:8px;}
+.flag-item{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;}
+.flag-area-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--red-dim);color:var(--red);white-space:nowrap;}
+.flag-text{flex:1;font-size:13px;}
+.flag-id{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:1px;}
+.flag-score-big{font-size:20px;font-weight:700;color:var(--red);}
+
+/* SETTINGS */
+.settings-section{margin-bottom:28px;}
+.settings-title{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);}
+.settings-row:last-child{border-bottom:none;}
+.settings-row-label{font-size:13px;}
+.settings-row-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.settings-input{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace;width:260px;}
+.settings-input:focus{outline:none;border-color:var(--accent);}
+.toggle{width:40px;height:22px;background:var(--bg4);border-radius:11px;cursor:pointer;position:relative;transition:background .2s;border:none;}
+.toggle.on{background:var(--accent);}
+.toggle::after{content:'';width:16px;height:16px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;}
+.toggle.on::after{transform:translateX(18px);}
+
+/* PIN MANAGEMENT */
+.pin-manage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+.pin-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.pin-card-role{font-size:12px;font-weight:600;margin-bottom:4px;}
+.pin-card-current{font-size:11px;color:var(--text3);margin-bottom:10px;font-family:'DM Mono',monospace;}
+.pin-change-input{background:var(--bg4);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:14px;color:var(--text);font-family:'DM Mono',monospace;width:100%;letter-spacing:.2em;margin-bottom:8px;}
+.pin-change-input:focus{outline:none;border-color:var(--accent);}
+
+/* SECTION HEADER */
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+.section-header h1{font-size:20px;font-weight:600;}
+.section-header p{font-size:12px;color:var(--text3);margin-top:2px;}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.session-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--blue-dim);color:var(--blue);border-radius:6px;font-size:11px;font-weight:500;}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--blue);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 24px;color:var(--text3);}
+.empty-icon{font-size:32px;margin-bottom:12px;}
+.empty p{font-size:14px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 18px;font-size:13px;display:none;align-items:center;gap:10px;z-index:999;box-shadow:0 4px 24px rgba(0,0,0,.4);}
+.toast.show{display:flex;}
+
+/* CONFIRM MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:28px;max-width:380px;width:90%;}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:8px;}
+.modal-body{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6;}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+
+/* MOBILE */
+.ham{display:none;background:none;border:none;color:var(--text);cursor:pointer;padding:4px;}
+
+@media(max-width:768px){
+  /* Layout */
+  .sidebar{transform:translateX(-100%);z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.5);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;}
+  .ham{display:flex;}
+  .topbar{padding:0 14px;gap:8px;}
+  .topbar-date{display:none;}
+  .content{padding:14px 14px 80px;}
+
+  /* KPIs */
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+  .kpi-card{padding:14px;}
+  .kpi-value{font-size:22px;}
+
+  /* Charts */
+  .charts-row{grid-template-columns:1fr;gap:10px;margin-bottom:16px;}
+  .chart-wrap{height:160px;}
+
+  /* Area cards */
+  .areas-grid{grid-template-columns:1fr 1fr;gap:10px;}
+  .area-big-score{font-size:24px;}
+
+  /* Tables — hide less important cols */
+  .hide-mobile{display:none !important;}
+  tbody td{padding:8px 10px;font-size:12px;}
+  thead th{padding:8px 10px;font-size:10px;}
+  .note-input{width:100px;font-size:11px;}
+
+  /* Audit header */
+  .audit-header{flex-direction:column;align-items:flex-start;gap:10px;}
+  .audit-stats{gap:12px;}
+  .audit-stat-val{font-size:18px;}
+
+  /* Progress */
+  .area-progress-list{grid-template-columns:1fr 1fr;}
+  .progress-pct{font-size:22px;}
+
+  /* Start audit */
+  .audit-mode-grid{grid-template-columns:1fr 1fr;}
+  .start-hero h1{font-size:20px;}
+  .start-hero p{font-size:13px;}
+
+  /* Section headers */
+  .section-header{flex-direction:column;align-items:flex-start;}
+  .btn-row{flex-wrap:wrap;}
+
+  /* Settings */
+  .settings-row{flex-direction:column;align-items:flex-start;gap:8px;}
+  .settings-input{width:100%;}
+  .pin-manage-grid{grid-template-columns:1fr 1fr;}
+
+  /* History */
+  .history-item{flex-wrap:wrap;gap:8px;}
+  .history-date{min-width:unset;width:100%;font-size:11px;}
+
+  /* Topbar buttons */
+  #btn-export span:last-child{display:none;}
+  #btn-tg span:last-child{display:none;}
+
+  /* Overlay for sidebar */
+  .sidebar-overlay{display:block;}
+}
+
+@media(max-width:480px){
+  .areas-grid{grid-template-columns:1fr;}
+  .audit-mode-grid{grid-template-columns:1fr;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .area-progress-list{grid-template-columns:1fr;}
+  .pin-manage-grid{grid-template-columns:1fr;}
+  .charts-row{display:none;}
+
+  /* Login card */
+  .login-card{padding:24px 20px;}
+  .num-btn{padding:14px;}
+  .pin-dot{width:42px;height:48px;font-size:18px;}
+
+  /* Bottom nav bar */
+  .mobile-nav{display:flex;}
+
+  /* Table on mobile: make it scrollable */
+  .table-wrap{border-radius:var(--radius-sm);}
+  .note-input{width:80px;}
+  .topbar{height:52px;}
+}
+
+/* Sidebar overlay (tap outside to close) */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;}
+
+/* Mobile bottom navigation bar */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--bg2);border-top:1px solid var(--border);z-index:150;align-items:stretch;}
+.mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;transition:color .15s;border:none;background:none;font-family:'DM Sans',sans-serif;padding:0;}
+.mobile-nav-item.active{color:var(--accent);}
+.mobile-nav-item svg{width:18px;height:18px;}
+.mobile-nav-item:active{background:var(--bg3);}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ LOGIN ============================================================ -->
+<div id="login-screen" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">NB</div>
+      <div>
+        <h1>NUMA Bali</h1>
+        <span>Audit Control System</span>
+      </div>
+    </div>
+    <div class="login-lang">
+      <button class="lang-btn active" id="ll-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="ll-it" onclick="setLang('it')">IT</button>
+      <button class="lang-btn" id="ll-id" onclick="setLang('id')">ID</button>
+    </div>
+    <div class="login-label" id="lbl-select-role">Select your role</div>
+    <select class="login-select" id="role-select" onchange="onRoleChange()">
+      <option value="">— Choose role —</option>
+      <option value="admin">👑 Admin — Giorgio</option>
+      <option value="manager">🏝 Manager — Bali Operations</option>
+      <option value="area_housekeeping">🏡 Housekeeping</option>
+      <option value="area_restaurant">🍽 Restaurant</option>
+      <option value="area_spa">💆 Spa</option>
+      <option value="area_security">🅿️ Security / Parking</option>
+      <option value="area_laundry">🧺 Laundry</option>
+      <option value="area_lobby">🏛 Lobby &amp; Reception</option>
+      <option value="investor">📊 Investor — Read Only</option>
+    </select>
+    <div class="login-label" id="lbl-enter-pin">Enter PIN</div>
+    <div class="pin-row" id="pin-display">
+      <div class="pin-dot" id="pd0">—</div>
+      <div class="pin-dot" id="pd1">—</div>
+      <div class="pin-dot" id="pd2">—</div>
+      <div class="pin-dot" id="pd3">—</div>
+    </div>
+    <div class="numpad" id="numpad">
+      <button class="num-btn" onclick="pinPress('1')">1</button>
+      <button class="num-btn" onclick="pinPress('2')">2</button>
+      <button class="num-btn" onclick="pinPress('3')">3</button>
+      <button class="num-btn" onclick="pinPress('4')">4</button>
+      <button class="num-btn" onclick="pinPress('5')">5</button>
+      <button class="num-btn" onclick="pinPress('6')">6</button>
+      <button class="num-btn" onclick="pinPress('7')">7</button>
+      <button class="num-btn" onclick="pinPress('8')">8</button>
+      <button class="num-btn" onclick="pinPress('9')">9</button>
+      <button class="num-btn" onclick="pinPress('0')" style="grid-column:2">0</button>
+      <button class="num-btn del" onclick="pinDel()">⌫</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ============================================================ APP ============================================================ -->
+<div id="app-shell" class="app-shell">
+
+  <!-- Sidebar overlay -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav class="mobile-nav" id="mobile-nav">
+    <button class="mobile-nav-item active" id="mnav-dashboard" onclick="mobileNav('dashboard')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+      Dashboard
+    </button>
+    <button class="mobile-nav-item" id="mnav-start" onclick="mobileNav('start')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.22 4.97a.75.75 0 010 1.06L7.56 10.69a.75.75 0 01-1.06 0L4.72 8.91a.75.75 0 111.06-1.06l1.25 1.25 3.13-3.13a.75.75 0 011.06 0z"/></svg>
+      Audit
+    </button>
+    <button class="mobile-nav-item" id="mnav-flags" onclick="mobileNav('flags')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 4.5zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+      Flags
+    </button>
+    <button class="mobile-nav-item" id="mnav-settings" onclick="mobileNav('settings')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.43a5.5 5.5 0 00-1.45.6l-.3-.18a1 1 0 00-1.37.37l-1 1.73a1 1 0 00.37 1.37l.3.17A5.5 5.5 0 003 8c0 .18.01.35.03.52l-.3.17a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.3-.18c.44.25.93.44 1.45.6V13a1 1 0 002 0v-.43a5.5 5.5 0 001.45-.6l.3.18a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.3-.17c.02-.17.03-.52l.3-.17a1 1 0 00.37-1.37l-1-1.73a1 1 0 00-1.37-.37l-.3.18A5.5 5.5 0 009 2.43V2a1 1 0 00-1-1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-mark">NB</div>
+      <h2>NUMA Bali</h2>
+      <span>Audit Control System</span>
+    </div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="sb-section">Main</div>
+      <div class="sb-item" id="sbitem-start" onclick="nav('start',this)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.22 4.97a.75.75 0 010 1.06L7.56 10.69a.75.75 0 01-1.06 0L4.72 8.91a.75.75 0 111.06-1.06l1.25 1.25 3.13-3.13a.75.75 0 011.06 0z"/></svg>
+        Start Audit
+      </div>
+      <div class="sb-item active" id="sbitem-dashboard" onclick="nav('dashboard',this)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
+        Dashboard
+      </div>
+      <div class="sb-item" id="sbitem-flags" onclick="nav('flags',this)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 4.5zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+        Red Flags
+        <span class="sb-score red" id="sb-flag-count">—</span>
+      </div>
+      <div class="sb-item" id="sbitem-history" onclick="nav('history',this)" style="display:none;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM4.5 8a.5.5 0 010-1H7.5V4.5a.5.5 0 011 0V7.5A.5.5 0 018 8H4.5z"/></svg>
+        Audit History
+      </div>
+      <div class="sb-section" style="margin-top:8px;" id="sb-areas-label">Areas</div>
+      <div id="sb-areas"></div>
+    </div>
+    <div class="sb-bottom">
+      <div class="sb-user">
+        <div class="sb-avatar" id="sb-avatar"></div>
+        <div class="sb-user-info">
+          <div class="sb-user-name" id="sb-user-name">—</div>
+          <div class="sb-user-role" id="sb-user-role">—</div>
+        </div>
+      </div>
+      <div class="sb-item" id="sbitem-settings" onclick="nav('settings',this)" style="margin:4px 8px 4px;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.43a5.5 5.5 0 00-1.45.6l-.3-.18a1 1 0 00-1.37.37l-1 1.73a1 1 0 00.37 1.37l.3.17A5.5 5.5 0 003 8c0 .18.01.35.03.52l-.3.17a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.3-.18c.44.25.93.44 1.45.6V13a1 1 0 002 0v-.43a5.5 5.5 0 001.45-.6l.3.18a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.3-.17c.02-.17.03-.34.03-.52s-.01-.35-.03-.52l.3-.17a1 1 0 00.37-1.37l-1-1.73a1 1 0 00-1.37-.37l-.3.18A5.5 5.5 0 009 2.43V2a1 1 0 00-1-1z"/></svg>
+        <span data-i18n="settings">Settings</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
+        <span data-i18n="logout">Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <button class="ham" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect y="4" width="20" height="2" rx="1"/><rect y="9" width="20" height="2" rx="1"/><rect y="14" width="20" height="2" rx="1"/></svg>
+      </button>
+      <span class="topbar-title" id="topbar-title">Dashboard</span>
+      <div class="lang-switcher">
+        <button class="lang-btn active" id="lb-en" onclick="setLang('en')">EN</button>
+        <button class="lang-btn" id="lb-it" onclick="setLang('it')">IT</button>
+        <button class="lang-btn" id="lb-id" onclick="setLang('id')">ID</button>
+      </div>
+      <span id="cloud-status" style="display:flex;align-items:center;gap:4px;margin-left:auto;">
+        <span style="color:#555e78;font-size:10px;">○</span>
+        <span style="color:var(--text2);font-size:11px;">Connecting...</span>
+      </span>
+      <span class="topbar-date" id="topbar-date"></span>
+      <button class="btn btn-ghost" onclick="exportPDF()" id="btn-export" style="display:none;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 00-1 1v12a1 1 0 001 1h6a1 1 0 001-1V5.414L9.586 3H5zM4 2a2 2 0 012-2h3.586a1 1 0 01.707.293l2.414 2.414A1 1 0 0113 3.414V14a2 2 0 01-2 2H5a2 2 0 01-2-2V2z"/></svg>
+        <span data-i18n="exportPdf">Export PDF</span>
+      </button>
+      <button class="btn btn-tg" onclick="sendTelegramReport()" id="btn-tg" style="display:none;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.67l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.834.93l-.566-.041z"/></svg>
+        <span data-i18n="sendReportBtn">Send Report</span>
+      </button>
+    </div>
+
+    <div class="content" id="main-content">
+
+      <!-- START AUDIT -->
+      <div class="page" id="page-start">
+        <div class="start-hero">
+          <h1>Start New Audit Session</h1>
+          <p>All scores will reset to 0. Walk through each area, score every item, then save to cloud when done.</p>
+          <div id="active-session-warn" style="display:none;background:var(--amber-dim);border:1px solid rgba(245,166,35,.3);border-radius:10px;padding:14px 20px;margin-bottom:24px;font-size:13px;color:var(--amber);">
+            ⚠️ There is already an active session in progress. Starting a new one will reset all current scores.
+          </div>
+        </div>
+        <div style="max-width:700px;margin:0 auto;">
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Select areas to audit</div>
+            <div class="audit-mode-grid" id="audit-mode-grid"></div>
+          </div>
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Auditor note (optional)</div>
+            <input id="session-note" class="settings-input" style="width:100%;font-family:'DM Sans',sans-serif;" placeholder="e.g. Surprise audit — unannounced">
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;">
+            <button class="btn btn-start" onclick="confirmStartAudit()">
+              Start Audit Session →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="section-header">
+          <div>
+            <h1>Operations Overview</h1>
+            <p>NUMA Bali Resort · Sideman, Bali</p>
+          </div>
+          <div class="btn-row" id="dash-session-badge"></div>
+        </div>
+        <div class="kpi-grid" id="kpi-grid"></div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <div class="chart-title" id="ct-bar">Score by area</div>
+            <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title" id="ct-radar">Quality radar</div>
+            <div class="chart-wrap"><canvas id="chart-radar"></canvas></div>
+          </div>
+        </div>
+        <div class="areas-grid" id="areas-grid"></div>
+      </div>
+
+      <!-- AREA PAGES -->
+      <div id="area-pages"></div>
+
+      <!-- RED FLAGS -->
+      <div class="page" id="page-flags">
+        <div class="section-header">
+          <div><h1>Red Flags</h1><p>Items with score ≤ 2 on Critical or high-weight checks</p></div>
+          <button class="btn btn-tg" onclick="sendTelegramReport()" data-i18n="sendReportBtn">Send to Telegram</button>
+        </div>
+        <div class="flags-list" id="flags-list"></div>
+      </div>
+
+      <!-- HISTORY -->
+      <div class="page" id="page-history">
+        <div class="section-header">
+          <div><h1>Audit History</h1><p>All saved sessions — cloud synced</p></div>
+          <button class="btn btn-primary" onclick="saveCurrentSession()" data-i18n="saveCurrentSession">Save Current Session</button>
+        </div>
+        <div id="history-content"></div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="page" id="page-settings">
+        <div class="section-header"><div><h1 id="sh-settings" data-i18n="settings">Settings</h1><p data-i18n="settingsDesc">Telegram, preferences, PIN management</p></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;">
+          <div class="card">
+            <div class="settings-section">
+              <div class="settings-title" data-i18n="telegramTitle">Telegram Integration</div>
+              <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.7;">
+                Bot: <code style="color:var(--accent);">@numabali_audit_bot</code><br>
+                Setup: <code style="color:var(--accent);">@BotFather</code> → <code>/newbot</code> → copy token<br>
+                Chat ID: <code style="color:var(--accent);">@userinfobot</code> → <code>/start</code>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Bot Token</div></div>
+                <input class="settings-input" id="tg-token" placeholder="7123456789:AAF..." oninput="saveTGSettings()">
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Chat ID</div></div>
+                <input class="settings-input" id="tg-chatid" placeholder="-100123456789" oninput="saveTGSettings()">
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Auto-notify on save</div></div>
+                <button class="toggle" id="tg-auto" onclick="toggleTGAuto()"></button>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Alert threshold</div></div>
+                <select class="settings-input" id="tg-threshold" style="width:100px;" onchange="saveTGSettings()">
+                  <option value="2">2.0</option><option value="2.5">2.5</option>
+                  <option value="3" selected>3.0</option><option value="3.5">3.5</option>
+                </select>
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Worker URL</div><div class="settings-row-sub">Cloudflare Worker for PDF delivery</div></div>
+                <input class="settings-input" id="worker-url" placeholder="https://numa-audit.yourname.workers.dev" oninput="localStorage.setItem('numa_worker_url',this.value)">
+              </div>
+              <div class="settings-row">
+                <div><div class="settings-row-label">Worker URL</div><div class="settings-row-sub">Cloudflare Worker → enables PDF on Telegram</div></div>
+                <input class="settings-input" id="worker-url" placeholder="https://numa-audit.workers.dev" oninput="localStorage.setItem('numa_worker_url',this.value)" style="width:260px;font-size:11px;">
+              </div>
+              <div style="margin-top:14px;display:flex;gap:8px;">
+                <button class="btn btn-tg" onclick="testTelegram()">Test</button>
+                <button class="btn btn-primary" onclick="sendTelegramReport()">Send Report</button>
+              </div>
+            </div>
+          </div>
+          <div class="card" id="pin-settings-card">
+            <div class="settings-section">
+              <div class="settings-title" data-i18n="pinManagement">PIN Management</div>
+              <div class="pin-manage-grid" id="pin-manage-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Confirm</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="modal-confirm-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon">✓</span>
+  <span id="toast-msg">Saved</span>
+</div>
+
+<script>
+// =========================================================
+// I18N — TRANSLATIONS
+// =========================================================
+var LANG = localStorage.getItem('numa_lang') || 'en';
+
+var I18N = {
+  en:{
+    selectRole:'Select your role',enterPin:'Enter PIN',
+    wrongPin:'Wrong PIN — try again',selectRoleFirst:'Please select a role first',
+    dashboard:'Dashboard',startAudit:'Start Audit',redFlags:'Red Flags',
+    history:'Audit History',settings:'Settings',logout:'Logout',
+    overallScore:tr('overallScore'),areasFailed:tr('areasFailed'),criticalIssues:tr('criticalIssues'),
+    auditProgress:tr('auditProgress'),
+    notStarted:tr('notStarted'),
+    justStarting:tr('justStarting'),
+    almostHalf:tr('almostHalf'),
+    overHalf:tr('overHalf'),
+    almostDone:tr('almostDone'),
+    complete:tr('complete'),
+    saveSession:'Save Session to Cloud',saveUpdate:'Save & Update',
+    sendReport:'Send Area Report',exportPdf:'Export PDF',sendReportBtn:'Send Report',
+    sessionActive:'Session active',
+    startNew:'Start New Audit Session',
+    startDesc:'All scores will reset to 0. Walk through each area, score every item, then save to cloud when done.',
+    selectAreas:'Select areas to audit',auditorNote:'Auditor note (optional)',
+    startBtn:'Start Audit Session →',resetStart:'Reset & Start New Audit',
+    resetDesc:'This will reset all current scores. All unsaved data will be lost. Are you sure?',
+    resetBtn:'Reset & Start',startBtn2:'Start Audit',
+    operationsOverview:'Operations Overview',
+    auditItem:'Audit Item',level:'Level',weight:'Weight',score:'Score',progress:'Progress',notes:'Notes',
+    all:'All',critical:'Critical',issuesOnly:'Issues',ok:'OK (≥4)',notScored:'Not scored',
+    compliance:'Compliance',completed:'Completed',responsible:'Responsible',
+    flagsDesc:'Items with score ≤ 2 on Critical or high-weight checks',
+    noFlags:tr('noFlags'),
+    historyDesc:'All saved sessions — cloud synced',
+    saveCurrentSession:'Save Current Session',
+    loadingCloud:tr('loadingCloud'),noSessions:tr('noSessions'),
+    auditor:'Auditor',failedLbl:'failed',flagsLbl:'flags',
+    view:'View',del:'Delete',back:'← Back',
+    pinManagement:'PIN Management',currentPin:'Current PIN:',updatePin:'Update PIN',
+    pinUpdated:'PIN updated for',pinError:'PIN must be exactly 4 digits',
+    areaSaved:'Area saved — dashboard updated',sessionSaved:'Session saved to cloud!',
+    sessionDelete:'Session deleted',pdfOpened:'PDF export opened',
+    tgSent:'Report sent to Telegram!',tgArea:'Area report sent!',
+    settingsDesc:'Telegram, preferences, PIN management',
+    moderate:'Moderate',
+    low:'Low',
+    done:'done',
+    items:'checks',
+    areaNames:{
+      rooms_ayu:'Rooms — Ayu', rooms_lestari:'Rooms — Lestari', rooms_santai:'Rooms — Santai',
+      restaurant:'Restaurant', spa:'Spa', parking:'Parking Area',
+      laundry:'Laundry', lobby:'Lobby & Common Areas'
+    },
+    responsible:{
+      Housekeeping:'Housekeeping', 'Restaurant Team':'Restaurant Team',
+      Therapist:'Therapist', Security:'Security', Laundry:'Laundry', Receptionist:'Receptionist'
+    },
+    telegramTitle:'Telegram Integration',
+    tgConnected:'Telegram connected!',tgError:'Connection failed',
+    selectAtLeastOne:'Select at least one area',noData:'No data for this session',
+    scoreByArea:'Score by area',qualityRadar:'Quality radar',
+    weightedAvg:tr('weightedAvg'),scoreBelowThree:tr('scoreBelowThree'),
+    itemsBelowThree:tr('itemsBelowThree'),criticalHigh:'≤ 2 on critical items',
+    passed:'PASSED',borderline:'BORDERLINE',failedStatus:'FAILED',pending:'PENDING',
+  },
+  it:{
+    selectRole:'Seleziona il tuo ruolo',enterPin:'Inserisci il PIN',
+    wrongPin:'PIN errato — riprova',selectRoleFirst:'Seleziona prima un ruolo',
+    dashboard:'Dashboard',startAudit:'Inizia Audit',redFlags:'Problemi Critici',
+    history:'Storico Audit',settings:'Impostazioni',logout:'Esci',
+    overallScore:'Punteggio Totale',areasFailed:'Aree Insufficienti',criticalIssues:'Problemi Critici',
+    auditProgress:'Progresso audit',
+    notStarted:'Non ancora iniziato — vai in un\'area e inizia la valutazione',
+    justStarting:'Appena iniziato — continua così',
+    almostHalf:'Buon progresso — quasi a metà',
+    overHalf:'Oltre la metà — ottimo lavoro',
+    almostDone:'Quasi finito — completa gli item rimanenti',
+    complete:'✓ Audit completato — pronto per salvare',
+    saveSession:'Salva Sessione sul Cloud',saveUpdate:'Salva & Aggiorna',
+    sendReport:'Invia Report Area',exportPdf:'Esporta PDF',sendReportBtn:'Invia Report',
+    sessionActive:'Sessione attiva',
+    startNew:'Inizia Nuova Sessione Audit',
+    startDesc:'Tutti i punteggi si azzereranno. Vai in ogni area, valuta ogni voce, poi salva sul cloud.',
+    selectAreas:'Seleziona aree da auditare',auditorNote:'Nota auditor (opzionale)',
+    startBtn:'Inizia Sessione Audit →',resetStart:'Reset e Nuova Sessione',
+    resetDesc:'Tutti i punteggi correnti verranno azzerati. I dati non salvati andranno persi. Sei sicuro?',
+    resetBtn:'Reset e Inizia',startBtn2:'Inizia Audit',
+    operationsOverview:'Panoramica Operativa',
+    auditItem:'Voce Audit',level:'Livello',weight:'Peso',score:'Punteggio',progress:'Progresso',notes:'Note',
+    all:'Tutto',critical:'Critico',issuesOnly:'Problemi',ok:'OK (≥4)',notScored:'Non valutato',
+    compliance:'Conformità',completed:'Completate',responsible:'Responsabile',
+    flagsDesc:'Voci con punteggio ≤ 2 su controlli critici',
+    noFlags:'Nessun problema critico.',
+    historyDesc:'Tutte le sessioni salvate — sincronizzato sul cloud',
+    saveCurrentSession:'Salva Sessione Corrente',
+    loadingCloud:'Caricamento dal cloud...',noSessions:'Nessuna sessione salvata.',
+    auditor:'Auditor',failedLbl:'insufficiente',flagsLbl:'flag',
+    view:'Visualizza',del:'Elimina',back:'← Indietro',
+    pinManagement:'Gestione PIN',currentPin:'PIN attuale:',updatePin:'Aggiorna PIN',
+    pinUpdated:'PIN aggiornato per',pinError:'Il PIN deve essere di 4 cifre',
+    areaSaved:'Area salvata — dashboard aggiornata',sessionSaved:'Sessione salvata sul cloud!',
+    sessionDelete:'Sessione eliminata',pdfOpened:'Export PDF aperto',
+    tgSent:'Report inviato su Telegram!',tgArea:'Report area inviato!',
+    settingsDesc:'Telegram, preferenze, gestione PIN',
+    moderate:'Moderato',
+    low:'Basso',
+    done:'fatto',
+    items:'voci',
+    areaNames:{
+      rooms_ayu:'Camere — Ayu', rooms_lestari:'Camere — Lestari', rooms_santai:'Camere — Santai',
+      restaurant:'Ristorante', spa:'Spa', parking:'Parcheggio',
+      laundry:'Lavanderia', lobby:'Lobby e Aree Comuni'
+    },
+    responsible:{
+      Housekeeping:'Housekeeping', 'Restaurant Team':'Team Ristorante',
+      Therapist:'Terapista', Security:'Sicurezza', Laundry:'Lavanderia', Receptionist:'Receptionist'
+    },
+    telegramTitle:'Integrazione Telegram',
+    tgConnected:'Telegram connesso!',tgError:'Connessione fallita',
+    selectAtLeastOne:'Seleziona almeno un\'area',noData:'Nessun dato per questa sessione',
+    scoreByArea:'Punteggio per area',qualityRadar:'Radar qualità',
+    weightedAvg:'Media ponderata — tutte le aree',scoreBelowThree:'Punteggio sotto 3.0',
+    itemsBelowThree:'Voci con punteggio < 3',criticalHigh:'≤ 2 su voci critiche',
+    passed:'SUPERATO',borderline:'BORDERLINE',failedStatus:'INSUFFICIENTE',pending:'IN ATTESA',
+  },
+  id:{
+    selectRole:'Pilih peran Anda',enterPin:'Masukkan PIN',
+    wrongPin:'PIN salah — coba lagi',selectRoleFirst:'Silakan pilih peran terlebih dahulu',
+    dashboard:'Dasbor',startAudit:'Mulai Audit',redFlags:'Masalah Kritis',
+    history:'Riwayat Audit',settings:'Pengaturan',logout:'Keluar',
+    overallScore:'Skor Keseluruhan',areasFailed:'Area Gagal',criticalIssues:'Masalah Kritis',
+    auditProgress:'Progres audit',
+    notStarted:'Belum dimulai — pergi ke area dan mulai penilaian',
+    justStarting:'Baru dimulai — terus lanjutkan',
+    almostHalf:'Progres bagus — hampir setengah jalan',
+    overHalf:'Lebih dari setengah — kerja bagus',
+    almostDone:'Hampir selesai — selesaikan item yang tersisa',
+    complete:'✓ Audit selesai — siap disimpan ke cloud',
+    saveSession:'Simpan Sesi ke Cloud',saveUpdate:'Simpan & Perbarui',
+    sendReport:'Kirim Laporan Area',exportPdf:'Ekspor PDF',sendReportBtn:'Kirim Laporan',
+    sessionActive:'Sesi aktif',
+    startNew:'Mulai Sesi Audit Baru',
+    startDesc:'Semua skor akan direset ke 0. Periksa setiap area, nilai setiap item, lalu simpan ke cloud.',
+    selectAreas:'Pilih area untuk diaudit',auditorNote:'Catatan auditor (opsional)',
+    startBtn:'Mulai Sesi Audit →',resetStart:'Reset & Mulai Audit Baru',
+    resetDesc:'Ini akan mereset semua skor. Data yang belum disimpan akan hilang. Yakin?',
+    resetBtn:'Reset & Mulai',startBtn2:'Mulai Audit',
+    operationsOverview:'Ikhtisar Operasional',
+    auditItem:'Item Audit',level:'Tingkat',weight:'Bobot',score:'Skor',progress:'Progres',notes:'Catatan',
+    all:'Semua',critical:'Kritis',issuesOnly:'Masalah',ok:'OK (≥4)',notScored:'Belum dinilai',
+    compliance:'Kepatuhan',completed:'Selesai',responsible:'Penanggung Jawab',
+    flagsDesc:'Item dengan skor ≤ 2 pada pemeriksaan kritis',
+    noFlags:'Tidak ada masalah kritis.',
+    historyDesc:'Semua sesi tersimpan — disinkronkan ke cloud',
+    saveCurrentSession:'Simpan Sesi Saat Ini',
+    loadingCloud:'Memuat dari cloud...',noSessions:'Belum ada sesi tersimpan.',
+    auditor:'Auditor',failedLbl:'gagal',flagsLbl:'bendera',
+    view:'Lihat',del:'Hapus',back:'← Kembali',
+    pinManagement:'Manajemen PIN',currentPin:'PIN saat ini:',updatePin:'Perbarui PIN',
+    pinUpdated:'PIN diperbarui untuk',pinError:'PIN harus tepat 4 digit',
+    areaSaved:'Area tersimpan — dasbor diperbarui',sessionSaved:'Sesi tersimpan ke cloud!',
+    sessionDelete:'Sesi dihapus',pdfOpened:'Ekspor PDF dibuka',
+    tgSent:'Laporan dikirim ke Telegram!',tgArea:'Laporan area dikirim!',
+    settingsDesc:'Telegram, preferensi, manajemen PIN',
+    moderate:'Sedang',
+    low:'Rendah',
+    done:'selesai',
+    items:'item',
+    areaNames:{
+      rooms_ayu:'Kamar — Ayu', rooms_lestari:'Kamar — Lestari', rooms_santai:'Kamar — Santai',
+      restaurant:'Restoran', spa:'Spa', parking:'Area Parkir',
+      laundry:'Laundri', lobby:'Lobi & Area Umum'
+    },
+    responsible:{
+      Housekeeping:'Tata Graha', 'Restaurant Team':'Tim Restoran',
+      Therapist:'Terapis', Security:'Keamanan', Laundry:'Laundri', Receptionist:'Resepsionis'
+    },
+    telegramTitle:'Integrasi Telegram',
+    tgConnected:'Telegram terhubung!',tgError:'Koneksi gagal',
+    selectAtLeastOne:'Pilih setidaknya satu area',noData:'Tidak ada data untuk sesi ini',
+    scoreByArea:'Skor per area',qualityRadar:'Radar kualitas',
+    weightedAvg:'Rata-rata tertimbang — semua area',scoreBelowThree:'Skor di bawah 3.0',
+    itemsBelowThree:'Item dengan skor < 3',criticalHigh:'≤ 2 pada item kritis',
+    passed:'LULUS',borderline:'BORDERLINE',failedStatus:'GAGAL',pending:'TERTUNDA',
+  }
+};
+
+function tr(key){ try{ return (I18N[LANG]||I18N['en'])[key] || I18N['en'][key] || key; }catch(e){ return key; } }
+function trArea(key){ try{ return (I18N[LANG]||I18N['en']).areaNames[key] || I18N['en'].areaNames[key] || AREAS[key]?.name || key; }catch(e){ return key; } }
+function trResp(key){ try{ return (I18N[LANG]||I18N['en']).responsible[key] || I18N['en'].responsible[key] || key; }catch(e){ return key; } }
+
+var ITEM_NAMES = {
+  en: {
+    "RM-001":"Soap labels intact","RM-002":"Slippers & scale condition",
+    "RM-003":"Curtains clean & unstained","RM-004":"Cushions & Bed Linen",
+    "RM-005":"Core amenities (soap/shampoo/cond.)","RM-006":"Extras — lotion, vanity, dental",
+    "RM-007":"Pillow / Spa / Comp. menu","RM-008":"Dust-free surfaces",
+    "RM-009":"Dyson condition & filters","RM-010":"Notebook and pen",
+    "RM-011":"Glass & bottle","RM-012":"Nespresso & Tea Boiler",
+    "RM-013":"Sink, corner sink & mirror","RM-014":"Fridge clean & working",
+    "RM-015":"Complementary fridge setup","RM-016":"Shower soap holder",
+    "RM-017":"Smoking signage — balcony","RM-018":"Safety box & wardrobe",
+    "RM-019":"Hammock & outdoor furniture / Firepit",
+    "RM-020":"Sink filters working","RM-021":"Pool water clarity & chemistry",
+    "RM-022":"Sunbeds & towels condition",
+    "RS-001":"Dishes, glasses & cutlery","RS-002":"Beverage quality",
+    "RS-003":"Kitchen cleanliness","RS-004":"Menu condition",
+    "RS-005":"Menu holder condition","RS-006":"Tables & chairs organized",
+    "RS-007":"Floor cleanliness","RS-008":"Curtains condition",
+    "RS-009":"Music active","RS-010":"4 Mini towels positioned",
+    "RS-011":"Soap labels intact","RS-012":"Wood pillar secure",
+    "RS-013":"Public restroom","RS-014":"Cabinet clean & organized",
+    "RS-015":"Oil & vinegar bottles","RS-016":"Sanitizer inventory",
+    "RS-017":"Napkin cleanliness","RS-018":"Service speed & attitude",
+    "RS-019":"Sink filters working","RS-020":"Uniforms clean & tidy",
+    "ST-003":"Spa cleanliness","ST-004":"Spa treatment quality",
+    "ST-005":"Spa amenities","ST-006":"Spa environment",
+    "MT-001":"Water drainage, no clogging","MT-003":"Fabric & handles not damaged",
+    "MT-004":"Wooden holders clean","MT-005":"No puddles / slippery spots",
+    "MT-006":"Cleanliness","MT-007":"Motorbike arrangement",
+    "MT-008":"Wooden railing & rope","MT-009":"Parking sign condition",
+    "MT-010":"Parking wall condition","MT-011":"NUMA BALI sign condition",
+    "LD-001":"Laundry area clean & organized","LD-003":"Stock levels maintained",
+    "LD-004":"Towels & kimonos quality","LD-005":"Cushions & Bed Linen quality",
+    "AM-001":"Music active in lobby","AM-002":"Furniture & decorations",
+    "AM-003":"Lighting functional","AM-004":"Cleanliness",
+    "AM-005":"Uniforms clean & tidy","AM-006":"Correct English in guest chats",
+    "AM-007":"Check-in procedure followed","AM-008":"Security handles guest luggage",
+    "AM-009":"Guest seating area","AM-010":"Umbrellas in good condition",
+    "AM-011":"Pathway after rain","AM-012":"Staff behavior & attitude"
+  },
+  it: {
+    "RM-001":"Etichette sapone integre","RM-002":"Ciabatte e bilancia in ordine",
+    "RM-003":"Tende pulite e senza macchie","RM-004":"Cuscini e biancheria letto",
+    "RM-005":"Amenità base (sapone/shampoo/balsamo)","RM-006":"Extra — lozione, beauty kit, kit dentale",
+    "RM-007":"Menu cuscini / Spa / Complementari","RM-008":"Superfici pulite senza polvere",
+    "RM-009":"Dyson funzionante e filtri puliti","RM-010":"Taccuino e penna",
+    "RM-011":"Bicchieri e bottiglia","RM-012":"Nespresso e bollitore",
+    "RM-013":"Lavandino, angolo e specchio","RM-014":"Frigo pulito e funzionante",
+    "RM-015":"Setup frigo complementare","RM-016":"Portasapone doccia",
+    "RM-017":"Segnaletica fumatori — balcone","RM-018":"Cassaforte e armadio",
+    "RM-019":"Amaca e mobili esterni / Focolare",
+    "RM-020":"Filtri lavandino funzionanti","RM-021":"Chiarezza e chimica piscina",
+    "RM-022":"Lettini e asciugamani",
+    "RS-001":"Piatti, bicchieri e posate","RS-002":"Qualità bevande",
+    "RS-003":"Pulizia cucina","RS-004":"Condizione menu",
+    "RS-005":"Condizione porta-menu","RS-006":"Tavoli e sedie organizzati",
+    "RS-007":"Pulizia pavimento","RS-008":"Condizione tende",
+    "RS-009":"Musica attiva","RS-010":"4 Mini asciugamani posizionati",
+    "RS-011":"Etichette sapone integre","RS-012":"Pilastro in legno sicuro",
+    "RS-013":"Bagno pubblico","RS-014":"Armadietto pulito e ordinato",
+    "RS-015":"Bottiglie olio e aceto","RS-016":"Inventario igienizzanti",
+    "RS-017":"Pulizia tovaglioli","RS-018":"Velocità e attitudine del servizio",
+    "RS-019":"Filtri lavandino funzionanti","RS-020":"Divise pulite e in ordine",
+    "ST-003":"Pulizia spa","ST-004":"Qualità trattamenti spa",
+    "ST-005":"Attrezzature spa","ST-006":"Ambiente spa",
+    "MT-001":"Drenaggio acqua, nessun intasamento","MT-003":"Tessuto e maniglie non danneggiati",
+    "MT-004":"Supporti in legno puliti","MT-005":"Nessuna pozzanghera o zona scivolosa",
+    "MT-006":"Pulizia","MT-007":"Disposizione motociclette",
+    "MT-008":"Ringhiera in legno e corda","MT-009":"Segnaletica parcheggio",
+    "MT-010":"Muri parcheggio","MT-011":"Insegna NUMA BALI",
+    "LD-001":"Area lavanderia pulita e ordinata","LD-003":"Livelli scorte mantenuti",
+    "LD-004":"Qualità asciugamani e kimono","LD-005":"Qualità cuscini e biancheria",
+    "AM-001":"Musica attiva in lobby","AM-002":"Mobili e decorazioni",
+    "AM-003":"Illuminazione funzionante","AM-004":"Pulizia",
+    "AM-005":"Divise pulite e in ordine","AM-006":"Inglese corretto nelle chat con ospiti",
+    "AM-007":"Procedura check-in seguita","AM-008":"Sicurezza gestisce bagagli ospiti",
+    "AM-009":"Area seduta ospiti","AM-010":"Ombrelloni in buone condizioni",
+    "AM-011":"Percorso dopo la pioggia","AM-012":"Comportamento e attitudine del personale"
+  },
+  id: {
+    "RM-001":"Label sabun utuh","RM-002":"Sandal & timbangan kondisi baik",
+    "RM-003":"Tirai bersih & tidak bernoda","RM-004":"Bantal & sprei tempat tidur",
+    "RM-005":"Perlengkapan dasar (sabun/sampo/kondisioner)","RM-006":"Ekstra — losion, kit kecantikan, kit gigi",
+    "RM-007":"Menu bantal / Spa / Komplementer","RM-008":"Permukaan bersih bebas debu",
+    "RM-009":"Kondisi Dyson & filter","RM-010":"Buku catatan dan pena",
+    "RM-011":"Gelas & botol","RM-012":"Nespresso & pemanas air",
+    "RM-013":"Wastafel, sudut & cermin","RM-014":"Kulkas bersih & berfungsi",
+    "RM-015":"Pengaturan kulkas komplementer","RM-016":"Tempat sabun shower",
+    "RM-017":"Papan tanda area merokok — balkon","RM-018":"Brankas & lemari",
+    "RM-019":"Hammock & furnitur luar / Perapian",
+    "RM-020":"Filter wastafel berfungsi","RM-021":"Kejernihan & kimia kolam renang",
+    "RM-022":"Kursi berjemur & handuk",
+    "RS-001":"Piring, gelas & peralatan makan","RS-002":"Kualitas minuman",
+    "RS-003":"Kebersihan dapur","RS-004":"Kondisi menu",
+    "RS-005":"Kondisi tempat menu","RS-006":"Meja & kursi tertata",
+    "RS-007":"Kebersihan lantai","RS-008":"Kondisi tirai",
+    "RS-009":"Musik aktif","RS-010":"4 Mini handuk terpasang",
+    "RS-011":"Label sabun utuh","RS-012":"Pilar kayu aman",
+    "RS-013":"Toilet umum","RS-014":"Lemari bersih & tertata",
+    "RS-015":"Botol minyak & cuka","RS-016":"Inventaris hand sanitizer",
+    "RS-017":"Kebersihan serbet","RS-018":"Kecepatan & sikap pelayanan",
+    "RS-019":"Filter wastafel berfungsi","RS-020":"Seragam bersih & rapi",
+    "ST-003":"Kebersihan spa","ST-004":"Kualitas perawatan spa",
+    "ST-005":"Perlengkapan spa","ST-006":"Lingkungan spa",
+    "MT-001":"Drainase air, tidak tersumbat","MT-003":"Kain & pegangan tidak rusak",
+    "MT-004":"Pemegang kayu bersih","MT-005":"Tidak ada genangan / area licin",
+    "MT-006":"Kebersihan","MT-007":"Penataan motor",
+    "MT-008":"Pagar kayu & tali","MT-009":"Papan tanda parkir",
+    "MT-010":"Dinding parkir","MT-011":"Papan NUMA BALI",
+    "LD-001":"Area laundri bersih & tertata","LD-003":"Tingkat stok terjaga",
+    "LD-004":"Kualitas handuk & kimono","LD-005":"Kualitas bantal & sprei",
+    "AM-001":"Musik aktif di lobi","AM-002":"Furnitur & dekorasi",
+    "AM-003":"Pencahayaan berfungsi","AM-004":"Kebersihan",
+    "AM-005":"Seragam bersih & rapi","AM-006":"Bahasa Inggris di chat tamu",
+    "AM-007":"Prosedur check-in diikuti","AM-008":"Keamanan tangani bagasi tamu",
+    "AM-009":"Area duduk tamu","AM-010":"Payung kondisi baik",
+    "AM-011":"Jalur setelah hujan","AM-012":"Perilaku & sikap staf"
+  }
+};
+
+function trItem(itemId, fallback){
+  try{ return (ITEM_NAMES[LANG]||ITEM_NAMES.en)[itemId] || ITEM_NAMES.en[itemId] || fallback || itemId; }catch(e){ return fallback||itemId; }
+}
+
+
+
+function setLang(lang){
+  LANG=lang;
+  localStorage.setItem('numa_lang',lang);
+  ['en','it','id'].forEach(l=>{
+    ['lb-','ll-'].forEach(prefix=>{
+      const el=document.getElementById(prefix+l);
+      if(el) el.classList.toggle('active',l===lang);
+    });
+  });
+  applyI18n();
+  if(document.getElementById('app-shell').classList.contains('visible')){
+    // Remember which page is active before rebuild
+    const activePageId = document.querySelector('.page.active')?.id || 'page-dashboard';
+    const activeAreaId = document.querySelector('.sb-item.active')?.id || 'sbitem-dashboard';
+    
+    buildSidebar();
+    buildAreaPages();
+    buildFlags();
+    
+    // Restore active page
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    const activePg = document.getElementById(activePageId);
+    if(activePg) activePg.classList.add('active');
+    
+    // Restore active sidebar item
+    document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+    const activeSb = document.getElementById(activeAreaId);
+    if(activeSb) activeSb.classList.add('active');
+    
+    // Rebuild specific pages that need data
+    if(activePageId==='page-dashboard') buildDashboard();
+    else { buildDashboard(); } // always keep dashboard data fresh
+    
+    if(activePageId==='page-start') buildStartPage();
+    if(activePageId==='page-history') loadHistory();
+    
+    updateSBScores();
+  }
+  // Apply i18n after DOM is ready
+  setTimeout(applyI18n, 80);
+}
+
+function applyI18n(){
+  // Login labels
+  const el=(id,key)=>{const e=document.getElementById(id);if(e)e.textContent=tr(key);};
+  el('lbl-select-role','selectRole');
+  el('lbl-enter-pin','enterPin');
+
+  // All elements with data-i18n attribute
+  document.querySelectorAll('[data-i18n]').forEach(e=>{
+    const key=e.getAttribute('data-i18n');
+    if(key) e.textContent=tr(key);
+  });
+
+  // Sidebar nav items
+  const sbMap={
+    'sbitem-start':'startAudit',
+    'sbitem-dashboard':'dashboard',
+    'sbitem-flags':'redFlags',
+    'sbitem-history':'history',
+  };
+  Object.keys(sbMap).forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    // preserve child elements (icon, score badge), only update text node
+    el.childNodes.forEach(n=>{
+      if(n.nodeType===3&&n.textContent.trim()) n.textContent=' '+tr(sbMap[id]);
+    });
+  });
+
+  // Logout button
+  document.querySelectorAll('.logout-btn').forEach(btn=>{
+    btn.childNodes.forEach(n=>{if(n.nodeType===3&&n.textContent.trim()) n.textContent=' '+tr('logout');});
+  });
+
+  // Mobile nav labels
+  const mobileMap={'mnav-dashboard':'dashboard','mnav-start':'startAudit','mnav-flags':'redFlags'};
+  Object.keys(mobileMap).forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.childNodes.forEach(n=>{if(n.nodeType===3&&n.textContent.trim()) n.textContent=tr(mobileMap[id]).split(' ')[0];});
+  });
+
+  // Chart titles
+  const ctBar=document.getElementById('ct-bar');
+  if(ctBar) ctBar.textContent=tr('scoreByArea');
+  const ctRadar=document.getElementById('ct-radar');
+  if(ctRadar) ctRadar.textContent=tr('qualityRadar');
+
+  // Section headers with known IDs
+  const sectionMap={
+    'sh-dashboard':'operationsOverview',
+    'sh-flags':'redFlags',
+    'sh-history':'history',
+    'sh-start':'startAudit',
+    'sh-settings':'settings',
+  };
+  Object.keys(sectionMap).forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent=tr(sectionMap[id]);
+  });
+
+  // Topbar title (update to match current page)
+  const pageMap={
+    'page-start':tr('startAudit'),
+    'page-dashboard':tr('dashboard'),
+    'page-flags':tr('redFlags'),
+    'page-history':tr('history'),
+    'page-settings':tr('settings'),
+  };
+  Object.keys(pageMap).forEach(k=>{
+    if(document.getElementById(k)?.classList.contains('active'))
+      document.getElementById('topbar-title').textContent=pageMap[k];
+  });
+}
+
+// =========================================================
+// CONFIG
+// =========================================================
+var SB_URL='https://neziuncmalmrhqvkkerh.supabase.co';
+var SB_KEY='sb_publishable_gpfz_C0HjbKwTMOP9zlxvA__SDd_zgW';
+var TG_TOKEN_DEFAULT='8540636538:AAHdDAUioeFIdzAPxivO4QyY0k65OFX8HMQ';
+var TG_CHAT_DEFAULT='6213329694';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+
+// =========================================================
+// ROLES & PINS
+// =========================================================
+var ROLE_DEFS={
+  admin:    {label:'Admin — Giorgio',      color:'var(--blue)',   bg:'rgba(77,142,240,.15)',  avatar:'GI', canEdit:true,  canHistory:true,  canSettings:true,  areas:null},
+  manager:  {label:'Manager Bali',         color:'var(--green)',  bg:'rgba(34,201,135,.15)', avatar:'MG', canEdit:true,  canHistory:true,  canSettings:false, areas:null},
+  area_housekeeping:{label:'Housekeeping', color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'HK', canEdit:true,  canHistory:false, canSettings:false, areas:['rooms_ayu','rooms_lestari','rooms_santai']},
+  area_restaurant:  {label:'Restaurant',   color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'RS', canEdit:true,  canHistory:false, canSettings:false, areas:['restaurant']},
+  area_spa:         {label:'Spa',          color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'SP', canEdit:true,  canHistory:false, canSettings:false, areas:['spa']},
+  area_security:    {label:'Security',     color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'SC', canEdit:true,  canHistory:false, canSettings:false, areas:['parking']},
+  area_laundry:     {label:'Laundry',      color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'LN', canEdit:true,  canHistory:false, canSettings:false, areas:['laundry']},
+  area_lobby:       {label:'Lobby',        color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'LB', canEdit:true,  canHistory:false, canSettings:false, areas:['lobby']},
+  investor: {label:'Investor — Read Only', color:'var(--text2)', bg:'rgba(136,144,168,.1)', avatar:'IV', canEdit:false, canHistory:true,  canSettings:false, areas:null},
+};
+
+var PINS = {
+  admin:'2024', manager:'1234', area_housekeeping:'1111',
+  area_restaurant:'2222', area_spa:'3333', area_security:'4444',
+  area_laundry:'5555', area_lobby:'6666', investor:'0000'
+};
+
+function loadPins(){
+  const saved=localStorage.getItem('numa_pins');
+  if(saved) try{PINS={...PINS,...JSON.parse(saved)};}catch(e){}
+}
+function savePins(){localStorage.setItem('numa_pins',JSON.stringify(PINS));}
+
+// =========================================================
+// LOGIN STATE
+// =========================================================
+var currentRole=null;
+var currentPin='';
+var auditActive=false;
+var selectedAreas=null;
+
+function onRoleChange(){
+  currentPin='';
+  updatePinDisplay();
+  document.getElementById('login-error').textContent='';
+}
+
+function pinPress(d){
+  if(!document.getElementById('role-select').value){
+    document.getElementById('login-error').textContent=tr('selectRoleFirst');
+    return;
+  }
+  if(currentPin.length>=4) return;
+  currentPin+=d;
+  updatePinDisplay();
+  if(currentPin.length===4) setTimeout(tryLogin,120);
+}
+
+function pinDel(){
+  currentPin=currentPin.slice(0,-1);
+  updatePinDisplay();
+  document.getElementById('login-error').textContent='';
+}
+
+function updatePinDisplay(){
+  for(let i=0;i<4;i++){
+    const el=document.getElementById('pd'+i);
+    el.textContent=i<currentPin.length?'●':'—';
+    el.className='pin-dot'+(i<currentPin.length?' filled':'');
+  }
+}
+
+function tryLogin(){
+  const role=document.getElementById('role-select').value;
+  if(!role){document.getElementById('login-error').textContent=tr('selectRoleFirst');return;}
+  if(currentPin===PINS[role]){
+    currentRole=role;
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-shell').classList.add('visible');
+    setupAppForRole();
+    initApp();
+  } else {
+    document.getElementById('login-error').textContent=tr('wrongPin');
+    for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.add('error');
+    setTimeout(()=>{
+      currentPin='';
+      updatePinDisplay();
+      for(let i=0;i<4;i++){const el=document.getElementById('pd'+i);el.classList.remove('error');el.textContent='—';}
+    },700);
+  }
+}
+
+function doLogout(){
+  currentRole=null; currentPin=''; auditActive=false;
+  document.getElementById('app-shell').classList.remove('visible');
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('role-select').value='';
+  updatePinDisplay();
+}
+
+function setupAppForRole(){
+  const rd=ROLE_DEFS[currentRole];
+  // avatar
+  const av=document.getElementById('sb-avatar');
+  av.textContent=rd.avatar; av.style.background=rd.bg; av.style.color=rd.color;
+  document.getElementById('sb-user-name').textContent=rd.label;
+  document.getElementById('sb-user-role').textContent=currentRole.startsWith('area_')?'Area Responsible':
+    currentRole==='investor'?'Read-only access':'Full access';
+  // history visibility
+  document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
+  // export/tg buttons
+  document.getElementById('btn-export').style.display=rd.canHistory?'':'none';
+  document.getElementById('btn-tg').style.display=(rd.canEdit||currentRole==='admin')?'':'none';
+  // settings in sidebar — only admin
+  if(currentRole==='admin'){
+    const sbot=document.getElementById('sb-bottom');
+    if(sbot){
+      const existing=sbot.querySelector('.sb-settings-item');
+      if(!existing){
+        const s=document.createElement('div');
+        s.className='sb-item sb-settings-item';
+        s.innerHTML='<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="2.5"/></svg> '+tr('settings');
+        s.onclick=()=>nav('settings',s);
+        const logoutBtn=sbot.querySelector('.logout-btn');
+        if(logoutBtn) sbot.insertBefore(s,logoutBtn);
+        else sbot.appendChild(s);
+      }
+    }
+  }
+}
+
+// =========================================================
+// AUDIT DATA
+// =========================================================
+var AREAS={
+  rooms_ayu:{name:"Rooms — Ayu",icon:"🏡",responsible:"Housekeeping",color:"var(--blue)",items:[
+    {id:"RM-001",item:"Soap labels intact",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-002",item:"Slippers & scale condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-003",item:"Curtains clean & unstained",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-004",item:"Cushions & Bed Linen",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-005",item:"Core amenities (soap/shampoo/cond.)",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-006",item:"Extras — lotion, vanity, dental",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-007",item:"Pillow / Spa / Comp. menu",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-008",item:"Dust-free surfaces",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-009",item:"Dyson condition & filters",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-010",item:"Notebook and pen",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-011",item:"Glass & bottle",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-012",item:"Nespresso & Tea Boiler",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-013",item:"Sink, corner sink & mirror",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-014",item:"Fridge clean & working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-015",item:"Complementary fridge setup",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-016",item:"Shower soap holder",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-017",item:"Smoking signage — balcony",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-018",item:"Safety box & wardrobe",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-019",item:"Hammock & outdoor furniture",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-020",item:"Sink filters working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-021",item:"Pool water clarity & chemistry",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-022",item:"Sunbeds & towels condition",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  rooms_lestari:{name:"Rooms — Lestari",icon:"🌿",responsible:"Housekeeping",color:"var(--green)",items:[
+    {id:"RM-001",item:"Soap labels intact",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-002",item:"Towels & kimonos",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-003",item:"Slippers & scale condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-004",item:"Curtains clean & unstained",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-005",item:"Cushions & Bed Linen",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-006",item:"Core amenities",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-007",item:"Extras — lotion, vanity, dental",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-008",item:"Pillow / Spa / Comp. menu",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-009",item:"Dust-free surfaces",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-010",item:"Dyson condition & filters",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-011",item:"Notebook and pen",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-012",item:"Glass & bottle",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-013",item:"Nespresso & Tea Boiler",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-014",item:"Sink, corner sink & mirror",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-015",item:"Fridge clean & working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-016",item:"Complementary fridge setup",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-017",item:"Smoking signage — balcony",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-018",item:"Safety box & wardrobe",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-019",item:"Hammock & outdoor furniture",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-020",item:"Sink filters working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-021",item:"Pool water clarity & chemistry",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-022",item:"Sunbeds & towels condition",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  rooms_santai:{name:"Rooms — Santai",icon:"🌴",responsible:"Housekeeping",color:"var(--amber)",items:[
+    {id:"RM-001",item:"Soap labels intact",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-002",item:"Towels & kimonos",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-003",item:"Slippers & scale condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-004",item:"Curtains clean & unstained",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-005",item:"Cushions & Bed Linen",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-006",item:"Core amenities",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-007",item:"Extras — lotion, vanity, dental",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-008",item:"Pillow / Spa / Comp. menu",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-009",item:"Dust-free surfaces",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-010",item:"Dyson condition & filters",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-011",item:"Notebook and pen",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-012",item:"Glass & bottle",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-013",item:"Nespresso & Tea Boiler",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-014",item:"Sink, corner sink & mirror",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-015",item:"Fridge clean & working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-016",item:"Complementary fridge setup",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-017",item:"Smoking signage — balcony",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RM-018",item:"Safety box & wardrobe",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-019",item:"Firepit condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-020",item:"Sink filters working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RM-021",item:"Pool water clarity & chemistry",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RM-022",item:"Sunbeds & towels condition",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  restaurant:{name:"Restaurant",icon:"🍽️",responsible:"Restaurant Team",color:"var(--red)",items:[
+    {id:"RS-001",item:"Dishes, glasses & cutlery",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-002",item:"Beverage quality",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-003",item:"Kitchen cleanliness",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-004",item:"Menu condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-005",item:"Menu holder condition",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RS-006",item:"Tables & chairs organized",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-007",item:"Floor cleanliness",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-008",item:"Curtains condition",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RS-009",item:"Music active",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RS-010",item:"4 Mini towels positioned",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-011",item:"Soap labels intact",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-012",item:"Wood pillar secure",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RS-013",item:"Public restroom",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-014",item:"Cabinet clean & organized",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-015",item:"Oil & vinegar bottles",level:"Critical",weight:0.04,score:0,notes:""},
+    {id:"RS-016",item:"Sanitizer inventory",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"RS-017",item:"Napkin cleanliness",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-018",item:"Service speed & attitude",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"RS-019",item:"Sink filters working",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"RS-020",item:"Uniforms clean & tidy",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  spa:{name:"Spa",icon:"💆",responsible:"Therapist",color:"var(--green)",items:[
+    {id:"ST-003",item:"Spa cleanliness",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"ST-004",item:"Spa treatment quality",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"ST-005",item:"Spa amenities",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"ST-006",item:"Spa environment",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  parking:{name:"Parking Area",icon:"🅿️",responsible:"Security",color:"var(--text2)",items:[
+    {id:"MT-001",item:"Water drainage, no clogging",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"MT-003",item:"Fabric & handles not damaged",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-004",item:"Wooden holders clean",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-005",item:"No puddles / slippery spots",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-006",item:"Cleanliness",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"MT-007",item:"Motorbike arrangement",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-008",item:"Wooden railing & rope",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-009",item:"Parking sign condition",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"MT-010",item:"Parking wall condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"MT-011",item:"NUMA BALI sign condition",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  laundry:{name:"Laundry",icon:"🧺",responsible:"Laundry",color:"var(--blue)",items:[
+    {id:"LD-001",item:"Laundry area clean & organized",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"LD-003",item:"Stock levels maintained",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"LD-004",item:"Towels & kimonos quality",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"LD-005",item:"Cushions & Bed Linen quality",level:"Critical",weight:0.1,score:0,notes:""},
+  ]},
+  lobby:{name:"Lobby & Common Areas",icon:"🏛️",responsible:"Receptionist",color:"var(--amber)",items:[
+    {id:"AM-001",item:"Music active in lobby",level:"Low",weight:0.02,score:0,notes:""},
+    {id:"AM-002",item:"Furniture & decorations",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"AM-003",item:"Lighting functional",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-004",item:"Cleanliness",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-005",item:"Uniforms clean & tidy",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-006",item:"Correct English in guest chats",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"AM-007",item:"Check-in procedure followed",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-008",item:"Security handles guest luggage",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"AM-009",item:"Guest seating area",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-010",item:"Umbrellas in good condition",level:"Moderate",weight:0.04,score:0,notes:""},
+    {id:"AM-011",item:"Pathway after rain",level:"Critical",weight:0.1,score:0,notes:""},
+    {id:"AM-012",item:"Staff behavior & attitude",level:"Critical",weight:0.1,score:0,notes:""},
+  ]}
+};
+
+// =========================================================
+// SCORING ENGINE
+// =========================================================
+function calcArea(key){
+  const items=AREAS[key].items;
+  const totalW=items.reduce((s,i)=>s+i.weight,0);
+  const scored=items.filter(i=>i.score>0);
+  const weighted=items.reduce((s,i)=>s+(i.weight*i.score),0);
+  const avg=totalW>0?weighted/totalW:0;
+  const criticalIssues=items.filter(i=>i.score>0&&i.score<3).length;
+  const redFlags=items.filter(i=>i.score>0&&i.score<=2&&(i.level==='Critical'||i.weight>=0.08)).length;
+  const complianceRate=scored.length>0?(scored.filter(i=>i.score>=4).length/scored.length*100).toFixed(0):0;
+  const completedCount=scored.length;
+  const totalCount=items.length;
+  const status=avg>=4?'PASSED':avg>=3?'BORDERLINE':avg>0?'FAILED':'PENDING';
+  return{avg,criticalIssues,redFlags,complianceRate,status,completedCount,totalCount};
+}
+
+function calcGlobal(){
+  const keys=Object.keys(AREAS);
+  const scores=keys.map(k=>calcArea(k));
+  const activeKeys=selectedAreas||keys;
+  const activeScores=activeKeys.map(k=>scores[keys.indexOf(k)]);
+  const totalItems=activeKeys.reduce((s,k)=>s+AREAS[k].items.length,0);
+  const completedItems=activeKeys.reduce((s,k)=>s+calcArea(k).completedCount,0);
+  const progressPct=totalItems>0?Math.round(completedItems/totalItems*100):0;
+  const scoredAreas=activeScores.filter(r=>r.completedCount>0);
+  const overallAvg=scoredAreas.length>0?scoredAreas.reduce((s,r)=>s+r.avg,0)/scoredAreas.length:0;
+  const totalCritical=scores.reduce((s,r)=>s+r.criticalIssues,0);
+  const totalFlags=scores.reduce((s,r)=>s+r.redFlags,0);
+  const failed=scores.filter(r=>r.status==='FAILED').length;
+  return{overallAvg,totalCritical,totalFlags,failed,scores,keys,progressPct,completedItems,totalItems};
+}
+
+// =========================================================
+// COLOR HELPERS
+// =========================================================
+function scoreColor(s){if(s===0)return'var(--text3)';if(s>=4)return'var(--green)';if(s>=3)return'var(--amber)';return'var(--red)';}
+function statusBadge(st){
+  if(st==='PASSED') return`<span class="badge badge-passed">● ${tr('passed')}</span>`;
+  if(st==='BORDERLINE') return`<span class="badge badge-border">◆ ${tr('borderline')}</span>`;
+  if(st==='PENDING') return`<span class="badge" style="background:var(--bg4);color:var(--text3);">○ ${tr('pending')}</span>`;
+  return`<span class="badge badge-failed">✕ ${tr('failedStatus')}</span>`;
+}
+function levelPill(l){
+  if(l==='Critical') return`<span class="level-pill level-critical">${tr('critical')}</span>`;
+  if(l==='Moderate') return`<span class="level-pill level-moderate">${tr('moderate')}</span>`;
+  return`<span class="level-pill level-low">${tr('low')}</span>`;
+}
+function setCloudStatus(state,msg){
+  const el=document.getElementById('cloud-status');
+  if(!el)return;
+  const colors={ok:'#22c987',error:'#f05252',saving:'#f5a623',idle:'#555e78'};
+  const icons={ok:'●',error:'●',saving:'◌',idle:'○'};
+  el.innerHTML=`<span style="color:${colors[state]};font-size:10px;">${icons[state]}</span><span style="color:var(--text2);font-size:11px;margin-left:4px;">${msg}</span>`;
+}
+
+// =========================================================
+// PROGRESS BAR
+// =========================================================
+function buildProgressBar(){
+  const g=calcGlobal();
+  const pct=g.progressPct;
+  const areaKeys=selectedAreas||Object.keys(AREAS);
+  let milestoneHTML='';
+  [25,50,75,100].forEach(m=>{
+    const reached=pct>=m;
+    milestoneHTML+=`<div class="milestone"><div class="milestone-label" style="color:${reached?'var(--accent)':'var(--text3)'};">${m}%</div></div>`;
+  });
+  let areaProgHTML='';
+  areaKeys.forEach(k=>{
+    const a=AREAS[k];
+    const r=calcArea(k);
+    const done=r.completedCount;
+    const total=r.totalCount;
+    const areaPct=total>0?Math.round(done/total*100):0;
+    const barC=areaPct===100?'var(--green)':areaPct>50?'var(--amber)':'var(--text3)';
+    const checkIcon=areaPct===100?'✓':'';
+    areaProgHTML+=`<div class="area-prog-item">
+      <div class="area-prog-icon">${a.icon}</div>
+      <div class="area-prog-info">
+        <div class="area-prog-name">${trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','')}</div>
+        <div class="area-prog-bar"><div class="area-prog-fill" style="width:${areaPct}%;background:${barC};"></div></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="area-prog-count" style="color:${barC};">${done}/${total}</div>
+        <div class="area-prog-check" style="color:var(--green);">${checkIcon}</div>
+      </div>
+    </div>`;
+  });
+  const statusMsg=pct===0?tr('notStarted'):
+    pct<25?tr('justStarting'):
+    pct<50?tr('almostHalf'):
+    pct<75?tr('overHalf'):
+    pct<100?tr('almostDone'):
+    tr('complete');
+  const existingBar=document.getElementById('progress-bar-section');
+  if(existingBar) existingBar.remove();
+  const barHTML=`<div class="progress-section" id="progress-bar-section">
+    <div class="progress-header">
+      <h3>Audit progress</h3>
+      <div class="progress-pct">${pct}%</div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+    <div class="progress-milestones">${milestoneHTML}</div>
+    <div style="font-size:12px;color:${pct===100?'var(--green)':'var(--text3)'};margin-bottom:14px;text-align:center;">${statusMsg}</div>
+    <div class="area-progress-list">${areaProgHTML}</div>
+    ${pct===100?`<div style="margin-top:16px;text-align:center;"><button class="btn btn-primary" onclick="saveCurrentSession()">☁️ Save Session to Cloud</button></div>`:''}
+  </div>`;
+  const dashContent=document.getElementById('page-dashboard');
+  const kpiGrid=document.getElementById('kpi-grid');
+  kpiGrid.insertAdjacentHTML('beforebegin',barHTML);
+}
+
+// =========================================================
+// DASHBOARD
+// =========================================================
+var barChart=null,radarChart=null;
+function buildDashboard(){
+  const g=calcGlobal();
+  const avgFmt=g.overallAvg.toFixed(2);
+  const avgColor=g.overallAvg>=4?'green':g.overallAvg>=3?'amber':'red';
+  if(auditActive){
+    buildProgressBar();
+    document.getElementById('dash-session-badge').innerHTML='<span class="session-badge"><span class="pulse"></span> Session active</span>';
+  } else {
+    const existing=document.getElementById('progress-bar-section');
+    if(existing) existing.remove();
+    document.getElementById('dash-session-badge').innerHTML='';
+  }
+  document.getElementById('kpi-grid').innerHTML=`
+    <div class="kpi-card ${avgColor}"><div class="kpi-label">Overall Score</div><div class="kpi-value ${avgColor}">${avgFmt}<span style="font-size:16px;font-weight:400;color:var(--text3);">/5</span></div><div class="kpi-sub">Weighted avg — all areas</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Areas Failed</div><div class="kpi-value red">${g.failed}</div><div class="kpi-sub">Score below 3.0</div></div>
+    <div class="kpi-card amber"><div class="kpi-label">Critical Issues</div><div class="kpi-value amber">${g.totalCritical}</div><div class="kpi-sub">Items scoring below 3</div></div>
+    <div class="kpi-card blue"><div class="kpi-label">Red Flags</div><div class="kpi-value blue">${g.totalFlags}</div><div class="kpi-sub">Score ≤ 2 on critical items</div></div>
+  `;
+  let ahtml='';
+  g.keys.forEach((k,i)=>{
+    const r=g.scores[i];
+    const a=AREAS[k];
+    const pct=(r.avg/5*100).toFixed(1);
+    const sc=r.avg.toFixed(2);
+    const barC=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
+    const canClick=canAccessArea(k);
+    ahtml+=`<div class="area-card" onclick="${canClick?`nav('area_${k}',null)`:''}" style="${canClick?'':'cursor:default;opacity:.5'}">
+      <div class="area-header"><div><div class="area-name">${trArea(k)}</div><div class="area-sub">${trResp(a.responsible)} · ${a.items.length} ${tr('items')}</div></div><div style="font-size:22px;">${a.icon}</div></div>
+      <div class="area-score-wrap">
+        <div class="area-big-score" style="color:${barC};">${r.avg>0?sc:'—'}</div>
+        <div class="area-score-right">
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${barC};"></div></div>
+          <div class="area-meta">${statusBadge(r.status)}<span class="issues-count">${r.completedCount}/${r.totalCount} done</span></div>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('areas-grid').innerHTML=ahtml;
+  buildCharts(g);
+  document.getElementById('sb-flag-count').textContent=g.totalFlags;
+  const cbt=document.getElementById('ct-bar');if(cbt)cbt.textContent=tr('scoreByArea');
+  const crt=document.getElementById('ct-radar');if(crt)crt.textContent=tr('qualityRadar');
+}
+
+function buildCharts(g){
+  const labels=g.keys.map(k=>AREAS[k].name.replace('Rooms — ',''));
+  const scores=g.scores.map(r=>parseFloat(r.avg.toFixed(2)));
+  const colors=scores.map(s=>s>=4?'rgba(34,201,135,0.7)':s>=3?'rgba(245,166,35,0.7)':s>0?'rgba(240,82,82,0.7)':'rgba(85,94,120,0.4)');
+  const borderC=scores.map(s=>s>=4?'#22c987':s>=3?'#f5a623':s>0?'#f05252':'#555e78');
+  if(barChart) barChart.destroy();
+  const bctx=document.getElementById('chart-bar').getContext('2d');
+  barChart=new Chart(bctx,{type:'bar',data:{labels,datasets:[{data:scores,backgroundColor:colors,borderColor:borderC,borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' Score: '+(c.raw>0?c.raw.toFixed(2):'Not scored')}}},scales:{x:{min:0,max:5,ticks:{color:'#555e78',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.06)'}},y:{ticks:{color:'#8890a8',font:{size:11}},grid:{display:false},border:{color:'rgba(255,255,255,0.06)'}}}}});
+  if(radarChart) radarChart.destroy();
+  const rctx=document.getElementById('chart-radar').getContext('2d');
+  radarChart=new Chart(rctx,{type:'radar',data:{labels,datasets:[{label:'Score',data:scores,borderColor:'#22c987',backgroundColor:'rgba(34,201,135,0.1)',pointBackgroundColor:'#22c987',pointRadius:3,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:5,ticks:{stepSize:1,color:'#555e78',font:{size:9},backdropColor:'transparent'},grid:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#8890a8',font:{size:10}},angleLines:{color:'rgba(255,255,255,0.04)'}}}}});
+}
+
+// =========================================================
+// START AUDIT
+// =========================================================
+function buildStartPage(){
+  const rd=ROLE_DEFS[currentRole];
+  const availKeys=rd.areas||Object.keys(AREAS);
+  document.getElementById('active-session-warn').style.display=auditActive?'block':'none';
+  let html='';
+  availKeys.forEach(k=>{
+    const a=AREAS[k];
+    const r=calcArea(k);
+    const sel=!selectedAreas||selectedAreas.includes(k);
+    html+=`<div class="audit-mode-card ${sel?'selected':''}" id="amc-${k}" onclick="toggleAreaSelect('${k}')">
+      <div class="audit-mode-icon">${a.icon}</div>
+      <div class="audit-mode-title">${a.name}</div>
+      <div class="audit-mode-sub">${a.items.length} items · ${a.responsible}</div>
+    </div>`;
+  });
+  document.getElementById('audit-mode-grid').innerHTML=html;
+}
+
+function toggleAreaSelect(k){
+  const card=document.getElementById('amc-'+k);
+  card.classList.toggle('selected');
+}
+
+function confirmStartAudit(){
+  const rd=ROLE_DEFS[currentRole];
+  const availKeys=rd.areas||Object.keys(AREAS);
+  const chosen=availKeys.filter(k=>document.getElementById('amc-'+k)?.classList.contains('selected'));
+  if(!chosen.length){showToast('⚠️',tr('selectAtLeastOne'));return;}
+  showModal(
+    auditActive?'Reset & Start New Audit':'Start New Audit Session',
+    auditActive?`This will reset all current scores for the selected ${chosen.length} area(s). All unsaved data will be lost. Are you sure?`:`Starting a fresh audit for ${chosen.length} area(s). All scores will begin at 0.`,
+    ()=>doStartAudit(chosen),
+    auditActive?'Reset & Start':'Start Audit'
+  );
+}
+
+function doStartAudit(areaKeys){
+  selectedAreas=areaKeys;
+  areaKeys.forEach(k=>{
+    AREAS[k].items.forEach(item=>{item.score=0;item.notes='';});
+  });
+  auditActive=true;
+  buildAreaPages();
+  buildDashboard();
+  buildSidebar();
+  buildFlags();
+  showToast('🚀',tr('startAudit'));
+  nav('dashboard',document.getElementById('sbitem-dashboard'));
+}
+
+// =========================================================
+// AREA PAGES
+// =========================================================
+function canAccessArea(key){
+  const rd=ROLE_DEFS[currentRole];
+  if(!rd) return false;
+  if(rd.areas===null) return true;
+  return rd.areas.includes(key);
+}
+
+function buildAreaPages(){
+  const container=document.getElementById('area-pages');
+  let html='';
+  Object.keys(AREAS).forEach(key=>{
+    html+=`<div class="page" id="page-area_${key}"><div id="area-content-${key}"></div></div>`;
+  });
+  container.innerHTML=html;
+  Object.keys(AREAS).forEach(key=>renderArea(key));
+}
+
+function renderArea(key){
+  const a=AREAS[key];
+  const r=calcArea(key);
+  const canEdit=ROLE_DEFS[currentRole]?.canEdit&&canAccessArea(key);
+  const barC=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
+  const pct=(r.avg/5*100).toFixed(1);
+  let html=`
+    <div class="audit-header">
+      <div class="audit-header-left"><h1>${a.icon} ${trArea(key)}</h1><p>${tr('responsible')}: ${trResp(a.responsible)} · ${a.items.length} ${tr('auditItem')}</p></div>
+      <div class="audit-stats">
+        <div class="audit-stat"><div class="audit-stat-val" style="color:${barC};">${r.avg>0?r.avg.toFixed(2):'—'}</div><div class="audit-stat-label">Score</div></div>
+        <div class="audit-stat"><div class="audit-stat-val" style="color:var(--text2);">${r.completedCount}/${r.totalCount}</div><div class="audit-stat-label">Completed</div></div>
+        <div class="audit-stat"><div class="audit-stat-val" style="color:${r.complianceRate>=80?'var(--green)':'var(--amber)'};">${r.completedCount>0?r.complianceRate+'%':'—'}</div><div class="audit-stat-label">Compliance</div></div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      ${statusBadge(r.status)}
+      <div style="flex:1;min-width:140px;"><div class="bar-track" style="height:6px;"><div class="bar-fill" style="width:${pct}%;background:${barC};"></div></div></div>
+      ${canEdit?`<button class="btn btn-primary" onclick="saveArea('${key}')">Save & Update</button>`:''}
+      ${(canEdit||currentRole==='admin')?`<button class="btn btn-ghost" onclick="sendAreaTelegram('${key}')">Send Report</button>`:''}
+    </div>
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <button class="filter-btn active" onclick="filterArea('${key}','all',this)">All (${a.items.length})</button>
+        <button class="filter-btn" onclick="filterArea('${key}','critical',this)">Critical</button>
+        <button class="filter-btn" onclick="filterArea('${key}','issues',this)">Issues</button>
+        <button class="filter-btn" onclick="filterArea('${key}','ok',this)">OK (≥4)</button>
+        <button class="filter-btn" onclick="filterArea('${key}','todo',this)">Not scored</button>
+      </div>
+      <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>ID</th><th>Audit Item</th><th>Level</th><th class="hide-mobile">Weight</th><th>Score</th><th>Progress</th><th class="hide-mobile">Notes</th></tr></thead>
+        <tbody id="tbody-${key}">`;
+  a.items.forEach((item,idx)=>{
+    const pctItem=(item.score/5*100).toFixed(0);
+    const bC=scoreColor(item.score);
+    html+=`<tr data-level="${item.level}" data-score="${item.score}" data-idx="${idx}">
+      <td><span class="id-tag">${item.id}</span></td>
+      <td style="min-width:180px;font-size:13px;">${trItem(item.id, item.item)}</td>
+      <td>${levelPill(item.level)}</td>
+      <td style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${(item.weight*100).toFixed(0)}%</td>
+      <td>
+        <div class="score-stepper">
+          <button onclick="changeScore('${key}',${idx},-1)" ${!canEdit?'disabled':''}>−</button>
+          <span class="score-val" id="sv-${key}-${idx}" style="color:${bC};">${item.score===0?'—':item.score}</span>
+          <button onclick="changeScore('${key}',${idx},+1)" ${!canEdit?'disabled':''}>+</button>
+        </div>
+      </td>
+      <td>
+        <div class="inline-bar">
+          <div class="inline-bar-track"><div class="inline-bar-fill" id="bar-${key}-${idx}" style="width:${pctItem}%;background:${bC};"></div></div>
+          <span style="font-size:10px;color:var(--text3);min-width:24px;">${item.score>0?pctItem+'%':'—'}</span>
+        </div>
+      </td>
+      <td><input class="note-input" placeholder="Add note..." value="${item.notes}" ${!canEdit?'disabled':''} oninput="AREAS['${key}'].items[${idx}].notes=this.value"></td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div>`;
+  document.getElementById('area-content-'+key).innerHTML=html;
+}
+
+function changeScore(key,idx,delta){
+  const item=AREAS[key].items[idx];
+  let s=item.score+delta;
+  if(s<0) s=0;
+  if(s>5) s=5;
+  item.score=s;
+  const svEl=document.getElementById('sv-'+key+'-'+idx);
+  svEl.textContent=s===0?'—':s;
+  svEl.style.color=scoreColor(s);
+  const pct=(s/5*100).toFixed(0);
+  const bEl=document.getElementById('bar-'+key+'-'+idx);
+  bEl.style.width=pct+'%'; bEl.style.background=scoreColor(s);
+  const tr=svEl.closest('tr'); if(tr) tr.setAttribute('data-score',s);
+  if(auditActive){
+    const pg=document.getElementById('progress-bar-section');
+    if(pg) buildProgressBar();
+  }
+}
+
+function filterArea(key,filter,btn){
+  document.querySelectorAll(`#area-content-${key} .filter-btn`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll(`#tbody-${key} tr`).forEach(tr=>{
+    const lvl=tr.getAttribute('data-level');
+    const sc=parseInt(tr.getAttribute('data-score')||'0');
+    let show=true;
+    if(filter==='critical') show=lvl==='Critical';
+    else if(filter==='issues') show=sc>0&&sc<3;
+    else if(filter==='ok') show=sc>=4;
+    else if(filter==='todo') show=sc===0;
+    tr.style.display=show?'':'none';
+  });
+}
+
+function saveArea(key){
+  renderArea(key);
+  buildDashboard();
+  buildFlags();
+  updateSBScores();
+  showToast('✓',tr('areaSaved'));
+  if(localStorage.getItem('tg_auto')==='1') sendAreaTelegram(key,true);
+}
+
+// =========================================================
+// RED FLAGS
+// =========================================================
+function buildFlags(){
+  let flags=[];
+  Object.keys(AREAS).forEach(key=>{
+    AREAS[key].items.forEach(item=>{
+      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08))
+        flags.push({area:AREAS[key].name,key,item:item.item,score:item.score,id:item.id,weight:item.weight});
+    });
+  });
+  flags.sort((a,b)=>a.score-b.score);
+  document.getElementById('sb-flag-count').textContent=flags.length;
+  if(!flags.length){
+    document.getElementById('flags-list').innerHTML='<div class="empty"><div class="empty-icon">✓</div><p>No critical red flags.</p></div>';
+    return;
+  }
+  document.getElementById('flags-list').innerHTML=flags.map(f=>`
+    <div class="flag-item">
+      <span class="flag-area-tag">${trArea(f.key)}</span>
+      <div><div class="flag-text">${trItem(f.id, f.item)}</div><div class="flag-id">${f.id} · weight ${(f.weight*100).toFixed(0)}%</div></div>
+      <div style="text-align:right;"><div class="flag-score-big">${f.score}/5</div><div style="font-size:10px;color:var(--text3);">${f.level}</div></div>
+    </div>`).join('');
+}
+
+// =========================================================
+// SUPABASE CLOUD
+// =========================================================
+async function saveSessionToCloud(meta){
+  setCloudStatus('saving','Saving...');
+  try{
+    const{data:session,error:e1}=await sb.from('audit_sessions').insert({
+      session_date:meta.date,auditor:meta.auditor,
+      overall_score:parseFloat(meta.overallAvg),
+      failed_areas:meta.failed,total_flags:meta.totalFlags,notes:meta.notes||''
+    }).select().single();
+    if(e1) throw e1;
+    const rows=[];
+    Object.keys(AREAS).forEach(k=>{
+      AREAS[k].items.filter(i=>i.score>0).forEach(item=>{
+        rows.push({session_id:session.id,area_key:k,item_id:item.id,item_name:item.item,score:item.score,notes:item.notes||'',level:item.level,weight:item.weight});
+      });
+    });
+    if(rows.length){const{error:e2}=await sb.from('audit_scores').insert(rows);if(e2) throw e2;}
+    setCloudStatus('ok','Saved to cloud');
+    setTimeout(()=>setCloudStatus('idle','Cloud ready'),3000);
+    return session.id;
+  }catch(e){
+    setCloudStatus('error','Save failed — '+e.message);
+    return null;
+  }
+}
+
+async function loadSessionsFromCloud(){
+  setCloudStatus('saving','Loading...');
+  try{
+    const{data,error}=await sb.from('audit_sessions').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    setCloudStatus('ok',data.length+' sessions loaded');
+    setTimeout(()=>setCloudStatus('idle','Cloud ready'),2000);
+    return data;
+  }catch(e){setCloudStatus('error','Load failed');return[];}
+}
+
+async function loadSessionScores(sessionId){
+  const{data,error}=await sb.from('audit_scores').select('*').eq('session_id',sessionId);
+  if(error) return[];
+  return data;
+}
+
+async function deleteSession(sessionId){
+  const{error}=await sb.from('audit_sessions').delete().eq('id',sessionId);
+  if(error){showToast('✕','Delete failed');return;}
+  showToast('🗑',tr('sessionDelete'));
+  loadHistory();
+}
+
+// =========================================================
+// HISTORY
+// =========================================================
+async function loadHistory(){
+  const el=document.getElementById('history-content');
+  el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading from cloud...</p></div>';
+  const sessions=await loadSessionsFromCloud();
+  if(!sessions.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No saved sessions yet.</p></div>';
+    return;
+  }
+  let html='<div class="history-list">';
+  sessions.forEach(s=>{
+    const sc=parseFloat(s.overall_score).toFixed(2);
+    const c=sc>=4?'var(--green)':sc>=3?'var(--amber)':'var(--red)';
+    const dateStr=s.session_date||new Date(s.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    html+=`<div class="history-item">
+      <div class="history-date">${dateStr}</div>
+      <div class="history-score" style="color:${c};">${sc}</div>
+      <div style="flex:1;">
+        <div class="bar-track"><div class="bar-fill" style="width:${(sc/5*100)}%;background:${c};"></div></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Auditor: ${s.auditor||'—'} · ${s.failed_areas} failed · ${s.total_flags} flags</div>
+        ${s.notes?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">📝 ${s.notes}</div>`:''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+        ${s.failed_areas>0?'<span class="badge badge-failed">'+s.failed_areas+' failed</span>':'<span class="badge badge-passed">All OK</span>'}
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="viewSession('${s.id}')">View</button>
+        ${currentRole==='admin'?`<button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" onclick="deleteSession('${s.id}')">Delete</button>`:''}
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+async function viewSession(sessionId){
+  const scores=await loadSessionScores(sessionId);
+  if(!scores.length){showToast('⚠️',tr('noData'));return;}
+  const areaMap={};
+  scores.forEach(r=>{if(!areaMap[r.area_key])areaMap[r.area_key]=[];areaMap[r.area_key].push(r);});
+  let html='<button class="btn btn-ghost" style="margin-bottom:16px;" onclick="loadHistory()">← Back</button><div style="display:flex;flex-direction:column;gap:14px;">';
+  Object.keys(areaMap).forEach(key=>{
+    const aName=AREAS[key]?.name||key;
+    const items=areaMap[key];
+    const avg=(items.reduce((s,i)=>s+i.score,0)/items.length).toFixed(2);
+    const issues=items.filter(i=>i.score<3).length;
+    const c=avg>=4?'var(--green)':avg>=3?'var(--amber)':'var(--red)';
+    html+=`<div class="table-wrap"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+      <span style="font-size:14px;font-weight:500;">${AREAS[key]?.icon||''} ${aName}</span>
+      <span style="font-size:18px;font-weight:600;color:${c};margin-left:auto;">${avg}</span>
+      <span class="issues-count">${issues} issues</span>
+    </div><table>
+      <thead><tr><th>ID</th><th>Item</th><th>Level</th><th>Score</th><th class="hide-mobile">Notes</th></tr></thead><tbody>`;
+    items.forEach(item=>{
+      const ic=item.score>=4?'var(--green)':item.score>=3?'var(--amber)':'var(--red)';
+      html+=`<tr><td><span class="id-tag">${item.item_id}</span></td><td>${item.item_name}</td>
+        <td>${levelPill(item.level)}</td>
+        <td><span style="font-weight:600;color:${ic};">${item.score}/5</span></td>
+        <td style="font-size:12px;color:var(--text2);">${item.notes||'—'}</td></tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  });
+  html+='</div>';
+  document.getElementById('history-content').innerHTML=html;
+}
+
+async function saveCurrentSession(){
+  const g=calcGlobal();
+  const auditor=document.getElementById('auditor-name')?.value||localStorage.getItem('auditor_name')||'—';
+  const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const id=await saveSessionToCloud({date,auditor,overallAvg:g.overallAvg.toFixed(2),failed:g.failed,totalFlags:g.totalFlags,notes:document.getElementById('session-note')?.value||''});
+  if(id){
+    showToast('☁️',tr('sessionSaved'));
+    auditActive=false;
+    buildDashboard();
+    if(ROLE_DEFS[currentRole]?.canHistory) loadHistory();
+    sendTelegramReport();
+  }
+}
+
+// =========================================================
+// SIDEBAR
+// =========================================================
+function buildSidebar(){
+  let html='';
+  const rd=ROLE_DEFS[currentRole];
+  const visibleAreas=rd?.areas||Object.keys(AREAS);
+  visibleAreas.forEach(key=>{
+    const a=AREAS[key];
+    const r=calcArea(key);
+    const sc=r.avg>0?r.avg.toFixed(1):'—';
+    const cls=r.avg>=4?'green':r.avg>=3?'amber':r.avg>0?'red':'';
+    html+=`<div class="sb-item" id="sbitem-area_${key}" onclick="nav('area_${key}',this)">
+      <span style="font-size:14px;">${a.icon}</span>
+      ${trArea(key).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','').replace(' & Common Areas','').replace(' e Aree Comuni','').replace(' & Area Umum','')}
+      <span class="sb-score ${cls}" id="sb-score-${key}">${sc}</span>
+    </div>`;
+  });
+  document.getElementById('sb-areas').innerHTML=html;
+}
+
+function updateSBScores(){
+  Object.keys(AREAS).forEach(key=>{
+    const r=calcArea(key);
+    const el=document.getElementById('sb-score-'+key);
+    if(!el) return;
+    el.textContent=r.avg>0?r.avg.toFixed(1):'—';
+    el.className='sb-score '+(r.avg>=4?'green':r.avg>=3?'amber':r.avg>0?'red':'');
+  });
+}
+
+// =========================================================
+// NAVIGATION
+// =========================================================
+function nav(page,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  const pg=document.getElementById('page-'+page);
+  if(pg) pg.classList.add('active');
+  if(el) el.classList.add('active');
+  else{const sbi=document.getElementById('sbitem-'+page);if(sbi) sbi.classList.add('active');}
+  const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings')};
+  document.getElementById('topbar-title').textContent=titles[page]||(AREAS[page.replace('area_','')]?.name||page);
+  if(page==='dashboard') buildDashboard();
+  if(page==='flags') buildFlags();
+  if(page==='history') loadHistory();
+  if(page==='start') buildStartPage();
+  if(page==='settings') buildPinManagement();
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+// =========================================================
+// PIN MANAGEMENT (admin only)
+// =========================================================
+function buildPinManagement(){
+  if(currentRole!=='admin'){document.getElementById('pin-settings-card').style.display='none';return;}
+  const roles=['admin','manager','area_housekeeping','area_restaurant','area_spa','area_security','area_laundry','area_lobby','investor'];
+  let html='';
+  roles.forEach(r=>{
+    const rd=ROLE_DEFS[r];
+    html+=`<div class="pin-card">
+      <div class="pin-card-role" style="color:${rd.color};">${rd.label}</div>
+      <div class="pin-card-current">Current PIN: ${'●'.repeat(PINS[r].length)}</div>
+      <input class="pin-change-input" type="password" maxlength="4" placeholder="New PIN" id="pin-input-${r}" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;" onclick="updatePin('${r}')">Update PIN</button>
+    </div>`;
+  });
+  document.getElementById('pin-manage-grid').innerHTML=html;
+}
+
+function updatePin(role){
+  const input=document.getElementById('pin-input-'+role);
+  const val=input.value.trim();
+  if(val.length!==4||!/^\d{4}$/.test(val)){showToast('⚠️',tr('pinError'));return;}
+  PINS[role]=val;
+  savePins();
+  input.value='';
+  showToast('✓',tr('pinUpdated')+' '+ROLE_DEFS[role].label);
+  buildPinManagement();
+}
+
+// =========================================================
+// TELEGRAM
+// =========================================================
+function getTGConfig(){
+  return{
+    token:document.getElementById('tg-token')?.value||localStorage.getItem('tg_token')||TG_TOKEN_DEFAULT,
+    chatid:document.getElementById('tg-chatid')?.value||localStorage.getItem('tg_chatid')||TG_CHAT_DEFAULT
+  };
+}
+function saveTGSettings(){
+  localStorage.setItem('tg_token',document.getElementById('tg-token')?.value||'');
+  localStorage.setItem('tg_chatid',document.getElementById('tg-chatid')?.value||'');
+  localStorage.setItem('auditor_name',document.getElementById('auditor-name')?.value||'');
+}
+function toggleTGAuto(){
+  const btn=document.getElementById('tg-auto');
+  const cur=localStorage.getItem('tg_auto')==='1';
+  localStorage.setItem('tg_auto',cur?'0':'1');
+  btn.classList.toggle('on',!cur);
+}
+async function testTelegram(){
+  const cfg=getTGConfig();
+  if(!cfg.token||!cfg.chatid){showToast('⚠️','Enter Bot Token and Chat ID');return;}
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chatid,text:'✅ NUMA Bali Audit — connection test successful!',parse_mode:'HTML'})});
+    const d=await r.json();
+    d.ok?showToast('✓','Telegram connected!'):showToast('✕','Error: '+d.description);
+  }catch(e){showToast('✕',tr('tgError'));}
+}
+async function sendTelegramReport(){
+  const cfg=getTGConfig();
+  if(!cfg.token||!cfg.chatid){showToast('⚠️',tr('tgError'));nav('settings',null);return;}
+  const g=calcGlobal();
+  const auditor=localStorage.getItem('auditor_name')||ROLE_DEFS[currentRole]?.label||'—';
+  const resort=localStorage.getItem('resort_name')||'NUMA Bali';
+  const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const time=new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  // Score bar visual (10 blocks)
+  function scoreBar(avg){
+    const filled=Math.round((avg/5)*10);
+    return '█'.repeat(filled)+'░'.repeat(10-filled);
+  }
+  function statusEmoji(st){
+    return st==='PASSED'?'✅':st==='BORDERLINE'?'⚠️':st==='PENDING'?'⏳':'❌';
+  }
+
+  // Overall status
+  const overallStatus = g.overallAvg>=4?'PASSED':g.overallAvg>=3?'BORDERLINE':'FAILED';
+  const overallEmoji = statusEmoji(overallStatus);
+
+  // Build message
+  let msg = '';
+  msg += `🏝 <b>${resort}</b>
+`;
+  msg += `📋 <b>Audit Report</b> — ${date} ${time}
+`;
+  msg += `👤 ${auditor}
+`;
+  msg += `━━━━━━━━━━━━━━━━━━━━
+`;
+  msg += `
+`;
+
+  // Overall score block
+  msg += `${overallEmoji} <b>Overall Score: ${g.overallAvg.toFixed(2)}/5</b>
+`;
+  msg += `<code>${scoreBar(g.overallAvg)}</code> ${Math.round(g.overallAvg/5*100)}%
+`;
+  msg += `📊 Progress: ${g.progressPct}% completed
+`;
+  msg += `
+`;
+
+  // Quick stats
+  const passed = g.scores.filter(r=>r.status==='PASSED').length;
+  const borderline = g.scores.filter(r=>r.status==='BORDERLINE').length;
+  const failed = g.scores.filter(r=>r.status==='FAILED').length;
+  msg += `✅ Passed: ${passed}  ⚠️ Borderline: ${borderline}  ❌ Failed: ${failed}
+`;
+  msg += `🔴 Critical issues: ${g.totalCritical}  🚩 Red flags: ${g.totalFlags}
+`;
+  msg += `
+`;
+  msg += `━━━━━━━━━━━━━━━━━━━━
+`;
+  msg += `📍 <b>Score by Area</b>
+`;
+  msg += `━━━━━━━━━━━━━━━━━━━━
+`;
+
+  // Area breakdown with visual bars
+  g.keys.forEach((k,i)=>{
+    const r=g.scores[i];
+    const a=AREAS[k];
+    if(r.completedCount===0) return;
+    const emoji=statusEmoji(r.status);
+    const bar=scoreBar(r.avg);
+    const name=trArea(k);
+    msg += `
+${emoji} <b>${a.icon} ${name}</b>
+`;
+    msg += `<code>${bar}</code> ${r.avg.toFixed(2)}/5
+`;
+    if(r.criticalIssues>0){
+      msg += `   ⚠️ ${r.criticalIssues} issue${r.criticalIssues>1?'s':''} · `;
+    }
+    msg += `${r.completedCount}/${r.totalCount} checked
+`;
+  });
+
+  // Red flags grouped by area
+  if(g.totalFlags>0){
+    msg += `
+━━━━━━━━━━━━━━━━━━━━
+`;
+    msg += `🚩 <b>Red Flags</b>
+`;
+    msg += `━━━━━━━━━━━━━━━━━━━━
+`;
+
+    // Group by area
+    const flagsByArea={};
+    g.keys.forEach(k=>{
+      AREAS[k].items.forEach(item=>{
+        if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08)){
+          if(!flagsByArea[k]) flagsByArea[k]=[];
+          flagsByArea[k].push(item);
+        }
+      });
+    });
+
+    Object.keys(flagsByArea).forEach(k=>{
+      const aName=trArea(k);
+      const aIcon=AREAS[k].icon;
+      msg+=`
+${aIcon} <b>${aName}</b>
+`;
+      flagsByArea[k].forEach(item=>{
+        const scoreEmoji=item.score===1?'🔴':'🟠';
+        const name=trItem(item.id,item.item);
+        msg+=`  ${scoreEmoji} ${name}: <b>${item.score}/5</b>${item.notes?' — <i>'+item.notes+'</i>':''}
+`;
+      });
+    });
+  }
+
+  msg += `
+━━━━━━━━━━━━━━━━━━━━
+`;
+  msg += `📱 <i>NUMA Bali Audit System</i>`;
+
+  // Send text message
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:cfg.chatid,text:msg,parse_mode:'HTML'})
+    });
+    const d=await r.json();
+    if(d.ok){
+      showToast('✈️',tr('tgSent'));
+      // Also send PDF via Worker if configured
+      const workerUrl=localStorage.getItem('numa_worker_url')||'';
+      if(workerUrl) await sendPDFviaWorker(workerUrl,cfg);
+    } else showToast('✕','Telegram: '+d.description);
+  }catch(e){showToast('✕',tr('tgError'));}
+}
+
+async function sendPDFviaWorker(workerUrl, cfg){
+  const g=calcGlobal();
+  const auditor=localStorage.getItem('auditor_name')||ROLE_DEFS[currentRole]?.label||'—';
+  const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const flags=[];
+  Object.keys(AREAS).forEach(k=>{
+    AREAS[k].items.forEach(item=>{
+      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08))
+        flags.push({area:AREAS[k].name,key:k,item:item.item,id:item.id,score:item.score,level:item.level,weight:item.weight,notes:item.notes||''});
+    });
+  });
+  const areasData=g.keys.map((k,i)=>{
+    const r=g.scores[i]; const a=AREAS[k];
+    return{name:a.name,icon:a.icon,responsible:a.responsible,avg:r.avg,status:r.status,
+      issues:r.criticalIssues,complianceRate:r.complianceRate,completedCount:r.completedCount,totalCount:r.totalCount,
+      items:a.items.filter(i=>i.score>0).map(i=>({id:i.id,name:trItem(i.id,i.item),score:i.score,level:i.level,weight:i.weight,notes:i.notes||''}))};
+  });
+  const payload={
+    tgToken:cfg.token, tgChatId:cfg.chatid,
+    auditData:{date,auditor,overallAvg:g.overallAvg.toFixed(2),progressPct:g.progressPct,
+      failed:g.failed,totalCritical:g.totalCritical,totalFlags:g.totalFlags,areas:areasData,flags}
+  };
+  try{
+    showToast('📄','Sending PDF...');
+    const res=await fetch(workerUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(data.ok) showToast('📄','PDF sent to Telegram!');
+    else showToast('✕','PDF failed: '+(data.error||'check Worker URL'));
+  }catch(e){showToast('✕','Worker error: '+e.message);}
+}
+
+async function sendAreaTelegram(key,auto=false){
+  const cfg=getTGConfig();
+  if(!cfg.token||!cfg.chatid) return;
+  const a=AREAS[key];const r=calcArea(key);
+  const se=r.status==='PASSED'?'🟢':r.status==='BORDERLINE'?'🟡':r.status==='PENDING'?'⚪':'🔴';
+  let msg=`${se} <b>${a.name}</b> — Area Report\nScore: <b>${r.avg>0?r.avg.toFixed(2):'Not scored'}/5</b> · Done: ${r.completedCount}/${r.totalCount}\n━━━━━━━\n`;
+  const issues=a.items.filter(i=>i.score>0&&i.score<3);
+  issues.length?issues.forEach(i=>{msg+=`⚠️ ${i.item}: ${i.score}/5${i.notes?' — '+i.notes:''}\n`;}):msg+='✅ No issues found.\n';
+  try{await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chatid,text:msg,parse_mode:'HTML'})});}catch(e){}
+  if(!auto) showToast('✈️',tr('tgArea'));
+}
+
+// =========================================================
+// EXPORT PDF
+// =========================================================
+function exportPDF(){
+  const g=calcGlobal();
+  const auditor=localStorage.getItem('auditor_name')||ROLE_DEFS[currentRole]?.label||'—';
+  const resort=localStorage.getItem('resort_name')||'NUMA Bali';
+  const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+  const dateShort=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const overallStatus=g.overallAvg>=4?'PASSED':g.overallAvg>=3?'BORDERLINE':'FAILED';
+  const statusColor=g.overallAvg>=4?'#16a34a':g.overallAvg>=3?'#d97706':'#dc2626';
+  const statusBg=g.overallAvg>=4?'#f0fdf4':g.overallAvg>=3?'#fffbeb':'#fef2f2';
+
+  function pctBar(avg,color){
+    const pct=(avg/5*100).toFixed(1);
+    return `<div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;margin-top:4px;">
+      <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;"></div>
+    </div>`;
+  }
+  function scoreColor(s){ return s>=4?'#16a34a':s>=3?'#d97706':s>0?'#dc2626':'#94a3b8'; }
+  function statusPill(st){
+    const c=st==='PASSED'?{bg:'#f0fdf4',col:'#16a34a'}:st==='BORDERLINE'?{bg:'#fffbeb',col:'#d97706'}:st==='PENDING'?{bg:'#f8fafc',col:'#94a3b8'}:{bg:'#fef2f2',col:'#dc2626'};
+    return `<span style="background:${c.bg};color:${c.col};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.05em;">${st}</span>`;
+  }
+
+  // Collect all red flags grouped by area
+  const flagsByArea={};
+  let totalFlags=0;
+  g.keys.forEach(k=>{
+    AREAS[k].items.forEach(item=>{
+      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08)){
+        if(!flagsByArea[k]) flagsByArea[k]=[];
+        flagsByArea[k].push(item);
+        totalFlags++;
+      }
+    });
+  });
+
+  let html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>${resort} — Audit Report ${dateShort}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
+    .page-break{page-break-after:always;}
+    /* COVER */
+    .cover{min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(135deg,#0d1117 0%,#1a2332 60%,#0f2027 100%);color:#fff;padding:60px;}
+    .cover-logo{width:56px;height:56px;background:#22c987;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#0d1117;margin-bottom:40px;}
+    .cover h1{font-size:42px;font-weight:700;line-height:1.1;margin-bottom:8px;}
+    .cover h2{font-size:20px;font-weight:300;color:#94a3b8;margin-bottom:60px;}
+    .cover-meta{display:flex;gap:40px;margin-bottom:auto;}
+    .cover-meta-item label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px;}
+    .cover-meta-item span{font-size:15px;font-weight:500;}
+    .cover-score-block{margin-top:60px;padding:32px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:16px;display:inline-block;}
+    .cover-score{font-size:72px;font-weight:700;color:#22c987;line-height:1;}
+    .cover-score-label{font-size:14px;color:#94a3b8;margin-top:6px;}
+    .cover-status{display:inline-block;padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;margin-top:16px;letter-spacing:.06em;}
+    .cover-footer{margin-top:60px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center;}
+    .cover-footer span{font-size:12px;color:#64748b;}
+    /* CONTENT */
+    .content{padding:48px 56px;}
+    .section-title{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.12em;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;}
+    h3{font-size:18px;font-weight:600;margin-bottom:24px;color:#0f172a;}
+    /* KPI ROW */
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:40px;}
+    .kpi{padding:20px;border-radius:12px;border:1px solid #e2e8f0;}
+    .kpi-val{font-size:32px;font-weight:700;line-height:1;margin-bottom:4px;}
+    .kpi-lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;}
+    /* AREA TABLE */
+    .area-table{width:100%;border-collapse:collapse;margin-bottom:40px;}
+    .area-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;border-bottom:2px solid #f1f5f9;background:#f8fafc;}
+    .area-table td{padding:14px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    .area-table tr:last-child td{border-bottom:none;}
+    .area-table tr:hover td{background:#fafafa;}
+    .area-icon{font-size:18px;margin-right:8px;}
+    .area-name{font-weight:600;font-size:14px;}
+    .area-resp{font-size:11px;color:#94a3b8;margin-top:1px;}
+    /* AREA DETAIL */
+    .area-detail{margin-bottom:48px;break-inside:avoid;}
+    .area-header-detail{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:#f8fafc;border-radius:12px 12px 0 0;border:1px solid #e2e8f0;border-bottom:none;}
+    .area-header-left{display:flex;align-items:center;gap:12px;}
+    .area-icon-big{font-size:24px;}
+    .area-title{font-size:16px;font-weight:600;}
+    .area-subtitle{font-size:12px;color:#64748b;margin-top:1px;}
+    .area-score-big{font-size:28px;font-weight:700;}
+    .items-table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:0 0 12px 12px;overflow:hidden;}
+    .items-table th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
+    .items-table td{padding:10px 12px;border-bottom:1px solid #f8fafc;font-size:12px;vertical-align:middle;}
+    .items-table tr:last-child td{border-bottom:none;}
+    .items-table tr.issue td{background:#fef9f9;}
+    .score-badge{display:inline-block;width:28px;height:28px;border-radius:50%;text-align:center;line-height:28px;font-size:12px;font-weight:700;}
+    .level-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
+    .lp-critical{background:#fef2f2;color:#dc2626;}
+    .lp-moderate{background:#fffbeb;color:#d97706;}
+    .lp-low{background:#f8fafc;color:#64748b;}
+    /* RED FLAGS */
+    .flags-section{margin-bottom:40px;}
+    .flag-area-block{margin-bottom:24px;}
+    .flag-area-title{font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+    .flag-item-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fef9f9;border-left:3px solid #dc2626;border-radius:0 8px 8px 0;margin-bottom:6px;}
+    .flag-item-name{flex:1;font-size:12px;font-weight:500;}
+    .flag-item-note{font-size:11px;color:#64748b;font-style:italic;}
+    .flag-score{font-size:14px;font-weight:700;color:#dc2626;}
+    /* FOOTER */
+    .report-footer{margin-top:60px;padding-top:20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;}
+    @media print{
+      .page-break{page-break-after:always;}
+      .area-detail{break-inside:avoid;}
+      body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+    }
+  </style>
+  </head><body>
+
+  <!-- COVER PAGE -->
+  <div class="cover page-break">
+    <div class="cover-logo">NB</div>
+    <h1>${resort}</h1>
+    <h2>Quality Audit Report</h2>
+    <div class="cover-meta">
+      <div class="cover-meta-item"><label>Date</label><span>${date}</span></div>
+      <div class="cover-meta-item"><label>Auditor</label><span>${auditor}</span></div>
+      <div class="cover-meta-item"><label>Progress</label><span>${g.progressPct}% complete</span></div>
+      <div class="cover-meta-item"><label>Areas</label><span>${g.keys.length} sections</span></div>
+    </div>
+    <div class="cover-score-block">
+      <div class="cover-score">${g.overallAvg.toFixed(2)}</div>
+      <div class="cover-score-label">Overall Score / 5.00</div>
+      <div><span class="cover-status" style="background:${statusBg};color:${statusColor};">${overallStatus}</span></div>
+    </div>
+    <div class="cover-footer">
+      <span>NUMA Bali Resort · Sideman, Bali, Indonesia</span>
+      <span>Confidential — Internal Use Only</span>
+    </div>
+  </div>
+
+  <!-- EXECUTIVE SUMMARY -->
+  <div class="content page-break">
+    <div class="section-title">Executive Summary</div>
+    <h3>Audit Overview</h3>
+    <div class="kpi-row">
+      <div class="kpi" style="border-color:${statusColor};border-top:3px solid ${statusColor};">
+        <div class="kpi-val" style="color:${statusColor};">${g.overallAvg.toFixed(2)}</div>
+        <div class="kpi-lbl">Overall Score</div>
+      </div>
+      <div class="kpi" style="border-top:3px solid #dc2626;">
+        <div class="kpi-val" style="color:#dc2626;">${g.failed}</div>
+        <div class="kpi-lbl">Areas Failed</div>
+      </div>
+      <div class="kpi" style="border-top:3px solid #d97706;">
+        <div class="kpi-val" style="color:#d97706;">${g.totalCritical}</div>
+        <div class="kpi-lbl">Critical Issues</div>
+      </div>
+      <div class="kpi" style="border-top:3px solid #7c3aed;">
+        <div class="kpi-val" style="color:#7c3aed;">${totalFlags}</div>
+        <div class="kpi-lbl">Red Flags</div>
+      </div>
+    </div>
+
+    <div class="section-title">Score by Area</div>
+    <table class="area-table">
+      <thead><tr>
+        <th>Area</th><th>Score</th><th>Progress</th>
+        <th>Status</th><th>Issues</th><th>Compliance</th>
+      </tr></thead>
+      <tbody>`;
+
+  g.keys.forEach((k,i)=>{
+    const r=g.scores[i];
+    const a=AREAS[k];
+    const sc=r.avg>0?r.avg.toFixed(2):'—';
+    const col=scoreColor(r.avg);
+    const barW=r.avg>0?(r.avg/5*100).toFixed(1):0;
+    html+=`<tr>
+      <td><span class="area-icon">${a.icon}</span><span class="area-name">${trArea(k)}</span><div class="area-resp">${trResp(a.responsible)}</div></td>
+      <td><span style="font-size:20px;font-weight:700;color:${col};">${sc}</span></td>
+      <td style="min-width:120px;">
+        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">${r.completedCount}/${r.totalCount} items</div>
+        ${pctBar(r.avg,col)}
+      </td>
+      <td>${statusPill(r.status)}</td>
+      <td style="color:${r.criticalIssues>0?'#dc2626':'#16a34a'};font-weight:600;">${r.criticalIssues}</td>
+      <td style="color:${parseInt(r.complianceRate)>=80?'#16a34a':'#d97706'};font-weight:600;">${r.completedCount>0?r.complianceRate+'%':'—'}</td>
+    </tr>`;
+  });
+
+  html+=`</tbody></table>`;
+
+  // Red flags summary in executive page
+  if(totalFlags>0){
+    html+=`<div class="section-title">Red Flags Summary</div>
+    <div class="flags-section">`;
+    Object.keys(flagsByArea).forEach(k=>{
+      const a=AREAS[k];
+      html+=`<div class="flag-area-block">
+        <div class="flag-area-title">${a.icon} ${trArea(k)}</div>`;
+      flagsByArea[k].forEach(item=>{
+        const col=item.score===1?'#dc2626':'#ea580c';
+        html+=`<div class="flag-item-row">
+          <span class="level-pill lp-${item.level.toLowerCase()}">${item.level}</span>
+          <span class="flag-item-name">${trItem(item.id,item.item)}</span>
+          ${item.notes?`<span class="flag-item-note">${item.notes}</span>`:''}
+          <span class="flag-score" style="color:${col};">${item.score}/5</span>
+        </div>`;
+      });
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  }
+
+  html+=`<div class="report-footer"><span>NUMA Bali · ${resort} Audit Report · ${dateShort}</span><span>Page 2 / ${2+g.keys.filter((_,i)=>g.scores[i].completedCount>0).length}</span></div>
+  </div>`;
+
+  // AREA DETAIL PAGES
+  g.keys.forEach((k,i)=>{
+    const r=g.scores[i];
+    if(r.completedCount===0) return;
+    const a=AREAS[k];
+    const sc=r.avg>0?r.avg.toFixed(2):'—';
+    const col=scoreColor(r.avg);
+    html+=`<div class="content page-break">
+      <div class="section-title">Area Detail — ${trArea(k)}</div>
+      <div class="area-detail">
+        <div class="area-header-detail">
+          <div class="area-header-left">
+            <span class="area-icon-big">${a.icon}</span>
+            <div>
+              <div class="area-title">${trArea(k)}</div>
+              <div class="area-subtitle">${trResp(a.responsible)} · ${r.completedCount}/${r.totalCount} items checked · ${r.complianceRate}% compliance</div>
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div class="area-score-big" style="color:${col};">${sc}/5</div>
+            ${statusPill(r.status)}
+          </div>
+        </div>
+        <table class="items-table">
+          <thead><tr>
+            <th style="width:70px;">ID</th>
+            <th>Item</th>
+            <th style="width:90px;">Level</th>
+            <th style="width:60px;">Weight</th>
+            <th style="width:70px;">Score</th>
+            <th>Notes</th>
+          </tr></thead>
+          <tbody>`;
+    a.items.filter(item=>item.score>0).forEach(item=>{
+      const sc2=item.score;
+      const ic=scoreColor(sc2);
+      const scoreBg2=sc2>=4?'#f0fdf4':sc2>=3?'#fffbeb':'#fef2f2';
+      const isIssue=sc2<3;
+      const lpClass=item.level==='Critical'?'lp-critical':item.level==='Moderate'?'lp-moderate':'lp-low';
+      html+=`<tr class="${isIssue?'issue':''}">
+        <td style="font-size:10px;color:#94a3b8;font-family:monospace;">${item.id}</td>
+        <td style="font-weight:${isIssue?'600':'400'};color:${isIssue?'#dc2626':'inherit'};">${trItem(item.id,item.item)}</td>
+        <td><span class="level-pill ${lpClass}">${item.level}</span></td>
+        <td style="font-size:11px;color:#94a3b8;">${(item.weight*100).toFixed(0)}%</td>
+        <td><span class="score-badge" style="background:${scoreBg2};color:${ic};">${sc2}</span></td>
+        <td style="font-size:11px;color:#64748b;font-style:${item.notes?'normal':'italic'};">${item.notes||'—'}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>
+      <div class="report-footer"><span>NUMA Bali · ${trArea(k)}</span><span>${dateShort}</span></div>
+    </div>`;
+  });
+
+  html+=`</body></html>`;
+
+  const w=window.open('','_blank');
+  if(!w){showToast('⚠️','Allow popups to export PDF');return;}
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),800);
+  showToast('📄',tr('pdfOpened'));
+}
+
+
+// =========================================================
+// MODAL
+// =========================================================
+function showModal(title,body,onConfirm,confirmLabel='Confirm',danger=true){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').textContent=body;
+  const btn=document.getElementById('modal-confirm-btn');
+  btn.textContent=confirmLabel;
+  btn.className='btn '+(danger?'btn-danger':'btn-primary');
+  btn.onclick=()=>{closeModal();onConfirm();};
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+
+// =========================================================
+// TOAST
+// =========================================================
+function showToast(icon,msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toast-icon').textContent=icon;
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// =========================================================
+// SETTINGS LOAD
+// =========================================================
+function loadSavedSettings(){
+  const wuEl=document.getElementById('worker-url');if(wuEl) wuEl.value=localStorage.getItem('numa_worker_url')||'';
+  const tgT=document.getElementById('tg-token');if(tgT) tgT.value=localStorage.getItem('tg_token')||TG_TOKEN_DEFAULT;
+  const tgC=document.getElementById('tg-chatid');if(tgC) tgC.value=localStorage.getItem('tg_chatid')||TG_CHAT_DEFAULT;
+  const wu=document.getElementById('worker-url');if(wu) wu.value=localStorage.getItem('numa_worker_url')||'';
+  const autoBtn=document.getElementById('tg-auto');if(autoBtn&&localStorage.getItem('tg_auto')==='1') autoBtn.classList.add('on');
+  const thresh=document.getElementById('tg-threshold');if(thresh) thresh.value=localStorage.getItem('tg_threshold')||'3';
+}
+
+// =========================================================
+// INIT
+// =========================================================
+function initApp(){
+  LANG=localStorage.getItem('numa_lang')||'en';
+  ['en','it','id'].forEach(l=>{['lb-','ll-'].forEach(p=>{const e=document.getElementById(p+l);if(e)e.classList.toggle('active',l===LANG);});});
+  applyI18n();
+  document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  buildSidebar();
+  buildDashboard();
+  buildAreaPages();
+  buildFlags();
+  loadSavedSettings();
+  applyI18n();
+  // Test Supabase
+  (async()=>{
+    try{
+      const{error}=await sb.from('audit_sessions').select('id').limit(1);
+      if(error) throw error;
+      setCloudStatus('ok','Cloud connected');
+      setTimeout(()=>setCloudStatus('idle','Cloud ready'),2000);
+    }catch(e){setCloudStatus('error','Cloud offline');}
+  })();
+  // keyboard PIN
+  document.addEventListener('keydown',e=>{
+    if(document.getElementById('login-screen').style.display!=='none') return;
+  });
+}
+
+loadPins();
+
+// =========================================================
+// MOBILE HELPERS
+// =========================================================
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  const isOpen=sb.classList.contains('open');
+  sb.classList.toggle('open',!isOpen);
+  if(ov) ov.style.display=isOpen?'none':'block';
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  const ov=document.getElementById('sidebar-overlay');
+  if(ov) ov.style.display='none';
+}
+function mobileNav(page){
+  document.querySelectorAll('.mobile-nav-item').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('mnav-'+page);
+  if(btn) btn.classList.add('active');
+  nav(page, document.getElementById('sbitem-'+page));
+  closeSidebar();
+}
+
+// Update mobile nav active state when navigating from sidebar
+const _originalNav = nav;
+// Patch ham button to use toggleSidebar
+document.querySelector('.ham').onclick = toggleSidebar;
+</script>
+</body>
+</html>
