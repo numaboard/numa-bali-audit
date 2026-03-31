@@ -1,0 +1,275 @@
+name: Send Audit Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      audit_data:
+        description: 'Audit data JSON'
+        required: true
+        type: string
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Telegram Message + PDF
+        run: |
+          python3 << 'PYEOF'
+          import json, os, urllib.request, urllib.parse
+
+          TG_TOKEN = os.environ['TG_TOKEN']
+          TG_CHAT_ID = os.environ['TG_CHAT_ID']
+          audit_raw = os.environ['AUDIT_DATA']
+
+          d = json.loads(audit_raw)
+          overall = float(d.get('overallAvg', 0))
+          
+          def score_bar(s, blocks=10):
+              filled = round((s/5)*blocks)
+              return '█'*filled + '░'*(blocks-filled)
+          
+          def status_emoji(st):
+              return {'PASSED':'✅','BORDERLINE':'⚠️','PENDING':'⏳'}.get(st,'❌')
+
+          # Build text message
+          msg = f"🏝 <b>NUMA Bali — Audit Report</b>\n"
+          msg += f"📅 {d.get('date','N/A')} · {d.get('auditor','—')}\n"
+          msg += f"━━━━━━━━━━━━━━━━━━\n"
+          
+          overall_status = 'PASSED' if overall >= 4 else 'BORDERLINE' if overall >= 3 else 'FAILED' if overall > 0 else 'PENDING'
+          msg += f"{status_emoji(overall_status)} <b>Overall: {overall:.2f}/5</b>\n"
+          msg += f"<code>{score_bar(overall)}</code> {round(overall/5*100)}%\n"
+          msg += f"📊 Progress: {d.get('progressPct',0)}% complete\n"
+          msg += f"━━━━━━━━━━━━━━━━━━\n"
+          
+          areas = d.get('areas', [])
+          for area in areas:
+              if area.get('completedCount', 0) == 0:
+                  continue
+              sc = float(area.get('avg', 0))
+              em = status_emoji(area.get('status','PENDING'))
+              msg += f"{em} <b>{area.get('icon','')} {area.get('name','')}</b>: {sc:.2f}/5"
+              if area.get('issues', 0) > 0:
+                  msg += f" · ⚠️ {area['issues']} issues"
+              msg += "\n"
+          
+          msg += f"━━━━━━━━━━━━━━━━━━\n"
+          msg += f"❌ Failed: {d.get('failed',0)} · ⚠️ Issues: {d.get('totalCritical',0)} · 🚩 Flags: {d.get('totalFlags',0)}\n"
+          msg += f"📄 PDF report attached below ↓"
+
+          # Send text message
+          tg_api = f"https://api.telegram.org/bot{TG_TOKEN}"
+          data = json.dumps({'chat_id': TG_CHAT_ID, 'text': msg, 'parse_mode': 'HTML'}).encode()
+          req = urllib.request.Request(f"{tg_api}/sendMessage", data=data, headers={'Content-Type':'application/json'})
+          urllib.request.urlopen(req)
+          print("Text message sent")
+
+          # Build PDF HTML
+          def score_color(s):
+              if s >= 4: return '#16a34a'
+              if s >= 3: return '#d97706'
+              if s > 0: return '#dc2626'
+              return '#9ca3af'
+          
+          def status_color(st):
+              return {'PASSED':'#16a34a','BORDERLINE':'#d97706','PENDING':'#9ca3af'}.get(st,'#dc2626')
+          
+          def status_bg(st):
+              return {'PASSED':'#f0fdf4','BORDERLINE':'#fffbeb','PENDING':'#f9fafb'}.get(st,'#fef2f2')
+
+          def score_bar_html(score):
+              pct = round((score/5)*100)
+              color = score_color(score)
+              return f'<div style="width:80px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px;"><div style="width:{pct}%;height:100%;background:{color};border-radius:3px;"></div></div>'
+
+          overall_color = score_color(overall)
+          overall_bg_cover = 'rgba(34,201,135,.15)' if overall >= 4 else 'rgba(245,166,35,.15)' if overall >= 3 else 'rgba(240,82,82,.15)'
+          flags = d.get('flags', [])
+
+          html = f'''<!DOCTYPE html>
+          <html><head><meta charset="UTF-8">
+          <title>NUMA Bali Audit — {d.get("date","")}</title>
+          <style>
+          @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+          *{{box-sizing:border-box;margin:0;padding:0;}}
+          body{{font-family:"Inter",Arial,sans-serif;color:#111827;background:#fff;font-size:13px;}}
+          .cover{{min-height:100vh;display:flex;flex-direction:column;background:#0d1117;color:white;padding:60px 80px;page-break-after:always;}}
+          .cover-logo{{width:60px;height:60px;background:#22c987;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#0d1117;margin-bottom:60px;}}
+          .cover-tag{{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#6b7280;margin-bottom:16px;}}
+          .cover-title{{font-size:42px;font-weight:700;line-height:1.15;margin-bottom:8px;}}
+          .cover-sub{{font-size:18px;color:#9ca3af;margin-bottom:40px;}}
+          .cover-divider{{width:60px;height:3px;background:#22c987;margin-bottom:40px;}}
+          .cover-meta{{display:flex;gap:60px;margin-bottom:40px;}}
+          .cover-meta-item label{{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;display:block;margin-bottom:6px;}}
+          .cover-meta-item .val{{font-size:16px;font-weight:500;}}
+          .cover-score{{margin-top:auto;padding-top:40px;border-top:1px solid #1f2937;display:flex;align-items:center;gap:24px;}}
+          .section{{padding:40px 80px;}}
+          .section-title{{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6b7280;margin-bottom:24px;padding-bottom:12px;border-bottom:1px solid #e5e7eb;}}
+          .kpi-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:40px;}}
+          .kpi{{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px;}}
+          .kpi-label{{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}}
+          .kpi-value{{font-size:28px;font-weight:700;}}
+          .kpi-sub{{font-size:11px;color:#9ca3af;margin-top:4px;}}
+          .area-table{{width:100%;border-collapse:collapse;margin-bottom:32px;}}
+          .area-table th{{background:#f3f4f6;padding:10px 14px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:#6b7280;border-bottom:1px solid #e5e7eb;}}
+          .area-table td{{padding:12px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle;}}
+          .status-pill{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600;}}
+          .area-section{{margin-bottom:32px;page-break-inside:avoid;}}
+          .area-header{{display:flex;align-items:center;gap:12px;margin-bottom:12px;padding:14px 18px;background:#f9fafb;border-radius:10px;border-left:4px solid #e5e7eb;}}
+          .item-table{{width:100%;border-collapse:collapse;font-size:12px;}}
+          .item-table th{{padding:8px 12px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;color:#9ca3af;border-bottom:1px solid #f3f4f6;}}
+          .item-table td{{padding:9px 12px;border-bottom:1px solid #f9fafb;vertical-align:middle;}}
+          .level-tag{{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:600;}}
+          .flag-card{{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;border:1px solid #fee2e2;border-left:4px solid #dc2626;background:#fff5f5;margin-bottom:8px;}}
+          .flag-area{{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:#fee2e2;color:#dc2626;white-space:nowrap;}}
+          .footer{{padding:20px 80px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;}}
+          </style></head><body>'''
+
+          # Cover
+          html += f'''
+          <div class="cover">
+            <div class="cover-logo">NB</div>
+            <div class="cover-tag">Operations Quality Control</div>
+            <div class="cover-title">NUMA Bali<br>Audit Report</div>
+            <div class="cover-sub">Sideman, Bali — Indonesia</div>
+            <div class="cover-divider"></div>
+            <div class="cover-meta">
+              <div class="cover-meta-item"><label>Date</label><div class="val">{d.get("date","N/A")}</div></div>
+              <div class="cover-meta-item"><label>Auditor</label><div class="val">{d.get("auditor","—")}</div></div>
+              <div class="cover-meta-item"><label>Progress</label><div class="val">{d.get("progressPct",0)}% complete</div></div>
+              <div class="cover-meta-item"><label>Areas</label><div class="val">{len(areas)}</div></div>
+            </div>
+            <div class="cover-score">
+              <div>
+                <div style="font-size:13px;color:#6b7280;margin-bottom:4px;">Overall Score</div>
+                <div style="font-size:64px;font-weight:700;color:{overall_color};">{overall:.2f}</div>
+                <div style="font-size:13px;color:#6b7280;">out of 5.00</div>
+              </div>
+              <div style="flex:1;height:8px;background:#1f2937;border-radius:4px;overflow:hidden;margin:0 20px;">
+                <div style="width:{round(overall/5*100)}%;height:100%;background:{overall_color};border-radius:4px;"></div>
+              </div>
+              <div style="padding:8px 20px;border-radius:8px;background:{overall_bg_cover};color:{overall_color};font-size:13px;font-weight:600;">{overall_status}</div>
+            </div>
+          </div>'''
+
+          # KPIs
+          html += f'''
+          <div class="section">
+            <div class="section-title">Executive Summary</div>
+            <div class="kpi-grid">
+              <div class="kpi"><div class="kpi-label">Overall Score</div><div class="kpi-value" style="color:{overall_color};">{overall:.2f}</div><div class="kpi-sub">out of 5.00</div></div>
+              <div class="kpi"><div class="kpi-label">Areas Failed</div><div class="kpi-value" style="color:#dc2626;">{d.get("failed",0)}</div><div class="kpi-sub">score below 3.0</div></div>
+              <div class="kpi"><div class="kpi-label">Critical Issues</div><div class="kpi-value" style="color:#d97706;">{d.get("totalCritical",0)}</div><div class="kpi-sub">items scoring below 3</div></div>
+              <div class="kpi"><div class="kpi-label">Red Flags</div><div class="kpi-value" style="color:#dc2626;">{d.get("totalFlags",0)}</div><div class="kpi-sub">score ≤ 2 critical</div></div>
+            </div>
+            <table class="area-table">
+              <thead><tr><th>Area</th><th>Score</th><th>Status</th><th>Done</th><th>Issues</th><th>Compliance</th></tr></thead>
+              <tbody>'''
+
+          for area in areas:
+              sc = float(area.get('avg', 0))
+              sc2 = status_color(area.get('status','PENDING'))
+              sb = status_bg(area.get('status','PENDING'))
+              bar_html = score_bar_html(sc)
+              html += f'''<tr>
+                <td><strong>{area.get("icon","")} {area.get("name","")}</strong><br><span style="font-size:11px;color:#9ca3af;">{area.get("responsible","")}</span></td>
+                <td><span style="font-size:18px;font-weight:700;color:{score_color(sc)};">{sc:.2f if sc > 0 else "—"}</span>{bar_html}</td>
+                <td><span class="status-pill" style="background:{sb};color:{sc2};">{area.get("status","PENDING")}</span></td>
+                <td style="color:#6b7280;">{area.get("completedCount",0)}/{area.get("totalCount",0)}</td>
+                <td style="color:{"#dc2626" if area.get("issues",0) > 0 else "#16a34a"};font-weight:600;">{area.get("issues",0)}</td>
+                <td style="color:#6b7280;">{area.get("complianceRate",0)}%</td>
+              </tr>'''
+
+          html += '</tbody></table></div>'
+
+          # Area details
+          html += '<div class="section"><div class="section-title">Area Detail</div>'
+          for area in areas:
+              sc = float(area.get('avg', 0))
+              border_color = '#16a34a' if sc >= 4 else '#d97706' if sc >= 3 else '#dc2626' if sc > 0 else '#e5e7eb'
+              html += f'''<div class="area-section">
+                <div class="area-header" style="border-left-color:{border_color};">
+                  <span style="font-size:22px;">{area.get("icon","")}</span>
+                  <div>
+                    <div style="font-size:15px;font-weight:600;">{area.get("name","")}</div>
+                    <div style="font-size:11px;color:#9ca3af;">{area.get("responsible","")} · {area.get("completedCount",0)}/{area.get("totalCount",0)} completed</div>
+                  </div>
+                  <div style="margin-left:auto;font-size:22px;font-weight:700;color:{score_color(sc)};">{sc:.2f if sc > 0 else "—"}/5</div>
+                </div>'''
+              items = area.get('items', [])
+              if items:
+                  html += '''<table class="item-table">
+                    <thead><tr><th>ID</th><th>Item</th><th>Level</th><th>Score</th><th>Notes</th></tr></thead><tbody>'''
+                  for item in items:
+                      s = item.get('score', 0)
+                      ic = score_color(s)
+                      sbg = '#f0fdf4' if s >= 4 else '#fffbeb' if s >= 3 else '#fef2f2'
+                      lvl = item.get('level','')
+                      lvl_color = '#dc2626' if lvl=='Critical' else '#d97706' if lvl=='Moderate' else '#6b7280'
+                      lvl_bg = '#fef2f2' if lvl=='Critical' else '#fffbeb' if lvl=='Moderate' else '#f3f4f6'
+                      html += f'''<tr>
+                        <td style="font-family:monospace;font-size:10px;color:#9ca3af;">{item.get("id","")}</td>
+                        <td style="font-weight:500;">{item.get("name","")}</td>
+                        <td><span class="level-tag" style="background:{lvl_bg};color:{lvl_color};">{lvl}</span></td>
+                        <td><span style="display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:{sbg};color:{ic};">{s}</span></td>
+                        <td style="color:#6b7280;font-size:11px;">{item.get("notes","—") or "—"}</td>
+                      </tr>'''
+                  html += '</tbody></table>'
+              html += '</div>'
+          html += '</div>'
+
+          # Red Flags
+          if flags:
+              html += f'<div class="section"><div class="section-title">Red Flags — Score ≤ 2 on Critical Items ({len(flags)})</div>'
+              for f in flags:
+                  html += f'''<div class="flag-card">
+                    <span class="flag-area">{f.get("area","")}</span>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:500;">{f.get("item","")}</div>
+                      <div style="font-size:10px;color:#9ca3af;">{f.get("id","")} · Weight {round(f.get("weight",0)*100)}% · {f.get("level","")}</div>
+                    </div>
+                    <div style="font-size:20px;font-weight:700;color:#dc2626;">{f.get("score","")}/5</div>
+                  </div>'''
+              html += '</div>'
+
+          html += f'''<div class="footer">
+            <span>NUMA Bali Audit System · {d.get("date","")}</span>
+            <span>Auditor: {d.get("auditor","—")} · Overall: {overall:.2f}/5</span>
+          </div></body></html>'''
+
+          # Send as document
+          import tempfile, os
+          with tempfile.NamedTemporaryFile(mode='w', suffix='.html', delete=False, encoding='utf-8') as tmp:
+              tmp.write(html)
+              tmp_path = tmp.name
+
+          date_str = d.get('date','Report').replace(' ','_')
+          filename = f"NUMA_Bali_Audit_{date_str}.html"
+
+          with open(tmp_path, 'rb') as f_obj:
+              boundary = 'AuditReportBoundary'
+              body = (
+                  f'--{boundary}\r\n'
+                  f'Content-Disposition: form-data; name="chat_id"\r\n\r\n'
+                  f'{TG_CHAT_ID}\r\n'
+                  f'--{boundary}\r\n'
+                  f'Content-Disposition: form-data; name="caption"\r\n\r\n'
+                  f'📄 Full audit report — open in browser for best view\r\n'
+                  f'--{boundary}\r\n'
+                  f'Content-Disposition: form-data; name="document"; filename="{filename}"\r\n'
+                  f'Content-Type: text/html\r\n\r\n'
+              ).encode() + f_obj.read() + f'\r\n--{boundary}--\r\n'.encode()
+
+          req2 = urllib.request.Request(
+              f"{tg_api}/sendDocument",
+              data=body,
+              headers={'Content-Type': f'multipart/form-data; boundary={boundary}'}
+          )
+          resp = urllib.request.urlopen(req2)
+          print("PDF sent:", resp.read().decode()[:100])
+          os.unlink(tmp_path)
+          PYEOF
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          AUDIT_DATA: ${{ inputs.audit_data }}
