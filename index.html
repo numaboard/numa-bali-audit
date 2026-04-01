@@ -1,492 +1,446 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NUMA Bali — Audit System</title>
+<title>NUMA Bali — Audit</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
-:root{
-  --bg:#0d0f14;--bg2:#13161e;--bg3:#1a1e2a;--bg4:#222636;
-  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
-  --text:#f0f2f7;--text2:#8890a8;--text3:#555e78;
-  --green:#22c987;--green-dim:rgba(34,201,135,0.12);
-  --amber:#f5a623;--amber-dim:rgba(245,166,35,0.12);
-  --red:#f05252;--red-dim:rgba(240,82,82,0.12);
-  --blue:#4d8ef0;--blue-dim:rgba(77,142,240,0.12);
-  --accent:#22c987;--radius:12px;--radius-sm:8px;
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── TOKENS ── */
+:root {
+  --bg:       #f8f8f7;
+  --surface:  #ffffff;
+  --surface2: #f2f2f0;
+  --border:   #e8e8e5;
+  --border2:  #d4d4cf;
+  --text:     #1a1a18;
+  --text2:    #6b6b65;
+  --text3:    #a8a8a0;
+  --accent:   #1a1a18;
+  --green:    #16a34a;
+  --green-bg: #f0fdf4;
+  --amber:    #d97706;
+  --amber-bg: #fffbeb;
+  --red:      #dc2626;
+  --red-bg:   #fef2f2;
+  --blue:     #2563eb;
+  --blue-bg:  #eff6ff;
+  --radius:   10px;
+  --radius-sm:6px;
+  --shadow:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08);
 }
+[data-theme="dark"] {
+  --bg:       #0f0f0e;
+  --surface:  #1a1a18;
+  --surface2: #242420;
+  --border:   #2e2e2a;
+  --border2:  #3d3d38;
+  --text:     #f0f0ec;
+  --text2:    #8a8a82;
+  --text3:    #5a5a54;
+  --accent:   #f0f0ec;
+  --green:    #22c55e;
+  --green-bg: rgba(34,197,94,.1);
+  --amber:    #f59e0b;
+  --amber-bg: rgba(245,158,11,.1);
+  --red:      #ef4444;
+  --red-bg:   rgba(239,68,68,.1);
+  --blue:     #60a5fa;
+  --blue-bg:  rgba(96,165,250,.1);
+  --shadow:   0 1px 3px rgba(0,0,0,.3);
+  --shadow-md:0 4px 16px rgba(0,0,0,.4);
+}
+
+/* ── RESET ── */
 *{box-sizing:border-box;margin:0;padding:0;}
-html{font-size:14px;}
-body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+html{font-size:14px;-webkit-font-smoothing:antialiased;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .2s,color .2s;}
+a{color:inherit;text-decoration:none;}
+button,input,select,textarea{font-family:inherit;}
 
-/* LANGUAGE SWITCHER */
-.lang-switcher{display:flex;gap:4px;}
-.lang-btn{padding:4px 9px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);font-family:'DM Sans',sans-serif;transition:all .15s;letter-spacing:.04em;}
-.lang-btn:hover{color:var(--text);border-color:var(--border2);}
-.lang-btn.active{background:var(--green-dim);color:var(--accent);border-color:var(--accent);}
-.login-lang{display:flex;gap:6px;justify-content:center;margin-bottom:20px;}
+/* ── LAYOUT ── */
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:224px;min-width:224px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s,background .2s,border-color .2s;}
+.main{margin-left:224px;flex:1;min-width:0;}
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;position:sticky;top:0;z-index:50;transition:background .2s,border-color .2s;}
+.content{padding:24px 24px 80px;}
 
-/* LOGIN */
-.login-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:14px;color:var(--text);font-family:'DM Sans',sans-serif;margin-bottom:0;transition:border-color .15s;}
-.login-input:focus{outline:none;border-color:var(--accent);}
-.login-input::placeholder{color:var(--text3);}
-.login-btn{width:100%;margin-top:20px;padding:13px;background:var(--accent);color:#0d0f14;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
-.login-btn:hover{background:#1db87a;}
-.login-btn:active{transform:scale(0.98);}
-.login-btn:disabled{opacity:.5;cursor:not-allowed;}
-
-.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
-.login-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:400px;}
-.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
-.login-logo-mark{width:44px;height:44px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#0d0f14;}
-.login-logo h1{font-size:18px;font-weight:600;}
-.login-logo span{font-size:12px;color:var(--text3);display:block;margin-top:1px;}
-.login-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
-.login-select{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:14px;color:var(--text);font-family:'DM Sans',sans-serif;margin-bottom:16px;appearance:none;cursor:pointer;}
-.login-select:focus{outline:none;border-color:var(--accent);}
-.pin-row{display:flex;gap:10px;margin-bottom:24px;justify-content:center;}
-.pin-dot{width:48px;height:56px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;transition:all .15s;color:var(--text);}
-.pin-dot.filled{border-color:var(--accent);color:var(--accent);}
-.pin-dot.error{border-color:var(--red);animation:shake .3s ease;}
-.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
-.num-btn{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:18px;font-weight:500;color:var(--text);cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif;}
-.num-btn:hover{background:var(--bg4);border-color:var(--border2);}
-.num-btn:active{transform:scale(0.96);}
-.num-btn.del{font-size:14px;color:var(--text3);}
-.login-error{font-size:12px;color:var(--red);text-align:center;height:18px;margin-top:-4px;}
-.role-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
-.role-admin{background:rgba(77,142,240,.15);color:var(--blue);}
-.role-manager{background:rgba(34,201,135,.15);color:var(--green);}
-.role-area{background:rgba(245,166,35,.15);color:var(--amber);}
-.role-investor{background:rgba(240,82,82,.1);color:var(--text2);}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-
-/* APP SHELL */
-.app-shell{display:none;min-height:100vh;}
-.app-shell.visible{display:flex;}
-.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s;}
-.main{margin-left:220px;flex:1;min-width:0;}
-.topbar{height:56px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;position:sticky;top:0;z-index:50;}
-.content{padding:28px 28px 60px;}
-
-/* SIDEBAR */
-.sb-logo{padding:20px 18px 16px;border-bottom:1px solid var(--border);}
-.sb-logo-mark{width:36px;height:36px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#0d0f14;margin-bottom:8px;}
-.sb-logo h2{font-size:13px;font-weight:600;}
-.sb-logo span{font-size:11px;color:var(--text3);}
-.sb-section{padding:10px 10px 4px;font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;}
-.sb-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);margin:1px 8px;cursor:pointer;font-size:13px;color:var(--text2);transition:all .15s;}
-.sb-item:hover{background:var(--bg3);color:var(--text);}
-.sb-item.active{background:var(--green-dim);color:var(--green);}
-.sb-score{margin-left:auto;font-size:11px;font-weight:500;padding:1px 6px;border-radius:4px;}
-.sb-score.red{background:var(--red-dim);color:var(--red);}
-.sb-score.amber{background:var(--amber-dim);color:var(--amber);}
-.sb-score.green{background:var(--green-dim);color:var(--green);}
-.sb-bottom{margin-top:auto;padding:12px;border-top:1px solid var(--border);}
-.sb-user{display:flex;align-items:center;gap:8px;padding:8px 4px;margin-bottom:8px;}
-.sb-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;}
-.sb-user-info{flex:1;min-width:0;}
-.sb-user-name{font-size:12px;font-weight:500;color:var(--text);}
+/* ── SIDEBAR ── */
+.sb-brand{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.sb-mark{width:30px;height:30px;background:var(--text);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--surface);flex-shrink:0;letter-spacing:-.01em;}
+.sb-name{font-size:13px;font-weight:600;letter-spacing:-.01em;}
+.sb-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.sb-section{padding:14px 12px 4px;font-size:9px;font-weight:600;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius-sm);margin:1px 6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all .12s;}
+.sb-item:hover{background:var(--surface2);color:var(--text);}
+.sb-item.active{background:var(--text);color:var(--surface);}
+.sb-item svg{width:14px;height:14px;flex-shrink:0;opacity:.7;}
+.sb-item.active svg{opacity:1;}
+.sb-badge{margin-left:auto;font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;background:var(--red-bg);color:var(--red);}
+.sb-score{margin-left:auto;font-size:10px;font-weight:600;font-family:'JetBrains Mono',monospace;}
+.sb-score.g{color:var(--green);}
+.sb-score.a{color:var(--amber);}
+.sb-score.r{color:var(--red);}
+.sb-bottom{margin-top:auto;padding:10px 6px;border-top:1px solid var(--border);}
+.sb-user{display:flex;align-items:center;gap:8px;padding:8px;margin-bottom:4px;}
+.sb-avatar{width:28px;height:28px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--text2);flex-shrink:0;}
+.sb-user-name{font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sb-user-role{font-size:10px;color:var(--text3);}
-.logout-btn{width:100%;padding:8px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;font-family:inherit;transition:all .15s;}
-.logout-btn:hover{color:var(--red);border-color:rgba(240,82,82,.3);}
+.logout-btn{width:100%;padding:7px 10px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .12s;}
+.logout-btn:hover{border-color:var(--red);color:var(--red);}
 
-/* TOPBAR */
-.topbar-title{font-size:14px;font-weight:500;}
-.topbar-date{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;border:none;transition:all .15s;}
-.btn-primary{background:var(--accent);color:#0d0f14;}
-.btn-primary:hover{background:#1db87a;}
-.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border);}
-.btn-ghost:hover{color:var(--text);border-color:var(--border2);}
-.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(240,82,82,.2);}
-.btn-tg{background:rgba(0,136,204,.15);color:#29b6f6;border:1px solid rgba(0,136,204,.25);}
-.btn-tg:hover{background:rgba(0,136,204,.25);}
-.btn-start{background:linear-gradient(135deg,#22c987,#1aaa70);color:#0d0f14;font-size:13px;padding:10px 20px;border-radius:10px;font-weight:600;}
-.btn:disabled{opacity:.4;cursor:not-allowed;}
+/* ── TOPBAR ── */
+.topbar-title{font-size:13px;font-weight:600;letter-spacing:-.01em;}
+.topbar-date{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-left:auto;}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--radius-sm);font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text2);transition:all .12s;}
+.btn:hover{border-color:var(--border2);color:var(--text);}
+.btn-primary{background:var(--text);color:var(--surface);border-color:var(--text);}
+.btn-primary:hover{opacity:.85;}
+.btn-ghost{background:transparent;}
+.btn-danger{background:var(--red-bg);color:var(--red);border-color:transparent;}
+.btn-tg{background:var(--blue-bg);color:var(--blue);border-color:transparent;}
+.theme-toggle{width:32px;height:32px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);transition:all .12s;}
+.theme-toggle:hover{border-color:var(--border2);color:var(--text);}
+.lang-btns{display:flex;gap:2px;}
+.lang-btn{padding:4px 7px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--text3);transition:all .12s;}
+.lang-btn:hover{color:var(--text);}
+.lang-btn.active{background:var(--surface2);color:var(--text);border-color:var(--border);}
 
-/* PAGES */
+/* ── PAGES ── */
 .page{display:none;}
 .page.active{display:block;}
 
-/* CARDS */
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:24px;}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:36px;width:100%;max-width:380px;box-shadow:var(--shadow-md);}
+.login-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px;}
+.login-mark{width:34px;height:34px;background:var(--text);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--surface);}
+.login-brand h1{font-size:17px;font-weight:600;letter-spacing:-.02em;}
+.login-brand span{font-size:11px;color:var(--text3);display:block;}
+.login-lang{display:flex;gap:4px;margin-bottom:24px;}
+.form-label{font-size:11px;font-weight:500;color:var(--text2);margin-bottom:5px;display:block;letter-spacing:.02em;}
+.form-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--text);transition:border-color .12s;margin-bottom:12px;}
+.form-input:focus{outline:none;border-color:var(--text);}
+.form-input::placeholder{color:var(--text3);}
+.login-submit{width:100%;margin-top:8px;padding:11px;background:var(--text);color:var(--surface);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;transition:opacity .12s;}
+.login-submit:hover{opacity:.85;}
+.login-submit:disabled{opacity:.4;cursor:not-allowed;}
+.login-error{font-size:11px;color:var(--red);text-align:center;min-height:16px;margin-top:8px;}
 
-/* KPI */
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
-.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;position:relative;overflow:hidden;}
-.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
-.kpi-card.green::before{background:var(--green);}
-.kpi-card.amber::before{background:var(--amber);}
-.kpi-card.red::before{background:var(--red);}
-.kpi-card.blue::before{background:var(--blue);}
-.kpi-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
-.kpi-value{font-size:28px;font-weight:600;line-height:1;margin-bottom:4px;}
-.kpi-value.green{color:var(--green);}
-.kpi-value.amber{color:var(--amber);}
-.kpi-value.red{color:var(--red);}
-.kpi-value.blue{color:var(--blue);}
+/* ── SECTION HEADER ── */
+.sec-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap;}
+.sec-hdr h1{font-size:18px;font-weight:600;letter-spacing:-.02em;}
+.sec-hdr p{font-size:12px;color:var(--text3);margin-top:2px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+
+/* ── KPI GRID ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);}
+.kpi-label{font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.kpi-value{font-size:26px;font-weight:600;line-height:1;letter-spacing:-.02em;margin-bottom:3px;}
 .kpi-sub{font-size:11px;color:var(--text3);}
+.kpi-value.g{color:var(--green);}
+.kpi-value.a{color:var(--amber);}
+.kpi-value.r{color:var(--red);}
+.kpi-value.b{color:var(--blue);}
 
-/* AREA CARDS */
-.areas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px;}
-.area-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .2s;}
-.area-card:hover{border-color:var(--border2);background:var(--bg3);transform:translateY(-1px);}
-.area-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;}
-.area-name{font-size:14px;font-weight:500;margin-bottom:2px;}
-.area-sub{font-size:11px;color:var(--text3);}
-.area-score-wrap{display:flex;align-items:flex-end;gap:10px;margin-top:4px;}
-.area-big-score{font-size:32px;font-weight:600;line-height:1;}
-.area-score-right{flex:1;}
-.bar-track{height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:6px;}
-.bar-fill{height:100%;border-radius:3px;transition:width .4s ease;}
-.area-meta{display:flex;justify-content:space-between;align-items:center;}
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.04em;}
-.badge-failed{background:var(--red-dim);color:var(--red);}
-.badge-border{background:var(--amber-dim);color:var(--amber);}
-.badge-passed{background:var(--green-dim);color:var(--green);}
-.issues-count{font-size:11px;color:var(--text3);}
+/* ── AREA CARDS ── */
+.areas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-bottom:20px;}
+.area-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.area-card:hover{border-color:var(--border2);box-shadow:var(--shadow-md);transform:translateY(-1px);}
+.area-card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;}
+.area-icon{font-size:18px;}
+.area-name{font-size:13px;font-weight:600;letter-spacing:-.01em;margin-bottom:1px;}
+.area-sub{font-size:10px;color:var(--text3);}
+.area-score{font-size:26px;font-weight:600;letter-spacing:-.02em;line-height:1;}
+.area-score.g{color:var(--green);}
+.area-score.a{color:var(--amber);}
+.area-score.r{color:var(--red);}
+.area-score.n{color:var(--text3);}
+.bar-track{height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;margin:10px 0 8px;}
+.bar-fill{height:100%;border-radius:2px;transition:width .4s ease;}
+.area-foot{display:flex;align-items:center;justify-content:space-between;}
+.status-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600;letter-spacing:.04em;}
+.tag-pass{background:var(--green-bg);color:var(--green);}
+.tag-border{background:var(--amber-bg);color:var(--amber);}
+.tag-fail{background:var(--red-bg);color:var(--red);}
+.tag-pending{background:var(--surface2);color:var(--text3);}
+.area-issues{font-size:10px;color:var(--text3);}
 
-/* CHARTS */
-.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
-.chart-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}
-.chart-title{font-size:13px;font-weight:500;margin-bottom:16px;color:var(--text2);}
-.chart-wrap{position:relative;height:200px;}
+/* ── CHARTS ── */
+.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:20px;}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);}
+.chart-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;}
+.chart-wrap{position:relative;height:220px;}
 
-/* AUDIT TABLE */
-.audit-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
-.audit-header-left h1{font-size:18px;font-weight:600;}
-.audit-header-left p{font-size:12px;color:var(--text3);margin-top:2px;}
-.audit-stats{display:flex;gap:20px;flex-wrap:wrap;}
-.audit-stat{text-align:center;}
-.audit-stat-val{font-size:22px;font-weight:600;}
-.audit-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
-.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-.table-toolbar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.filter-btn{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:inherit;transition:all .15s;}
+/* ── TREND CHART ── */
+.trend-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px;box-shadow:var(--shadow);}
+.trend-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.trend-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;}
+.trend-legend{display:flex;gap:14px;flex-wrap:wrap;}
+.trend-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2);}
+.trend-dot{width:8px;height:8px;border-radius:50%;}
+
+/* ── TABLE ── */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);}
+.table-toolbar{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.filter-btn{padding:4px 10px;border-radius:4px;font-size:10px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .12s;}
 .filter-btn:hover{border-color:var(--border2);color:var(--text);}
-.filter-btn.active{border-color:var(--accent);color:var(--accent);background:var(--green-dim);}
+.filter-btn.active{background:var(--text);color:var(--surface);border-color:var(--text);}
 table{width:100%;border-collapse:collapse;}
-thead th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:var(--bg3);white-space:nowrap;}
+thead th{padding:9px 14px;text-align:left;font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid var(--border);background:var(--bg);white-space:nowrap;}
 tbody tr{border-bottom:1px solid var(--border);transition:background .1s;}
 tbody tr:last-child{border-bottom:none;}
-tbody tr:hover{background:var(--bg3);}
-tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
-.level-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;}
-.level-critical{background:var(--red-dim);color:var(--red);}
-.level-moderate{background:var(--amber-dim);color:var(--amber);}
-.level-low{background:var(--bg4);color:var(--text3);}
-.score-stepper{display:inline-flex;align-items:center;gap:6px;}
-.score-stepper button{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:var(--bg3);color:var(--text2);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:all .1s;font-family:inherit;}
+tbody tr:hover{background:var(--surface2);}
+tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
+.id-mono{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+.level-tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;}
+.lc{background:var(--red-bg);color:var(--red);}
+.lm{background:var(--amber-bg);color:var(--amber);}
+.ll{background:var(--surface2);color:var(--text3);}
+.score-stepper{display:inline-flex;align-items:center;gap:5px;}
+.score-stepper button{width:22px;height:22px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .1s;}
 .score-stepper button:hover{border-color:var(--border2);color:var(--text);}
 .score-stepper button:disabled{opacity:.3;cursor:not-allowed;}
-.score-val{font-size:14px;font-weight:600;min-width:20px;text-align:center;}
-.note-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text);font-family:inherit;width:160px;}
-.note-input:focus{outline:none;border-color:var(--accent);}
-.note-input:disabled{opacity:.4;cursor:not-allowed;}
-.id-tag{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
-.inline-bar{display:inline-flex;align-items:center;gap:8px;width:100px;}
-.inline-bar-track{flex:1;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.score-num{font-size:13px;font-weight:600;min-width:18px;text-align:center;font-family:'JetBrains Mono',monospace;}
+.inline-bar{display:inline-flex;align-items:center;gap:6px;}
+.inline-bar-track{width:56px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;}
 .inline-bar-fill{height:100%;border-radius:2px;}
+.note-input{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 9px;font-size:11px;color:var(--text);width:140px;}
+.note-input:focus{outline:none;border-color:var(--text);}
+.note-input:disabled{opacity:.4;}
 
-/* ---- START AUDIT PAGE ---- */
-.start-hero{text-align:center;padding:40px 20px 32px;}
-.start-hero h1{font-size:26px;font-weight:600;margin-bottom:8px;}
-.start-hero p{font-size:14px;color:var(--text3);max-width:480px;margin:0 auto 28px;}
-.audit-mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:32px;}
-.audit-mode-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:all .2s;text-align:left;}
-.audit-mode-card:hover{border-color:var(--border2);transform:translateY(-1px);}
-.audit-mode-card.selected{border-color:var(--accent);background:var(--green-dim);}
-.audit-mode-icon{font-size:24px;margin-bottom:10px;}
-.audit-mode-title{font-size:14px;font-weight:500;margin-bottom:4px;}
-.audit-mode-sub{font-size:11px;color:var(--text3);}
+/* ── AUDIT TABLE HEADER ── */
+.audit-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;}
+.audit-hdr-left h1{font-size:17px;font-weight:600;letter-spacing:-.02em;}
+.audit-hdr-left p{font-size:11px;color:var(--text3);margin-top:2px;}
+.audit-stats{display:flex;gap:20px;}
+.audit-stat{text-align:right;}
+.audit-stat-val{font-size:20px;font-weight:600;line-height:1;letter-spacing:-.02em;}
+.audit-stat-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
 
-/* PROGRESS BAR */
-.progress-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px;}
-.progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
-.progress-header h3{font-size:14px;font-weight:500;}
-.progress-pct{font-size:28px;font-weight:700;color:var(--accent);}
-.progress-track{height:12px;background:var(--bg4);border-radius:6px;overflow:hidden;margin-bottom:12px;position:relative;}
-.progress-fill{height:100%;border-radius:6px;transition:width .5s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#22c987,#1aaa70);}
-.progress-milestones{display:flex;justify-content:space-between;margin-bottom:14px;}
-.milestone{text-align:center;flex:1;position:relative;}
-.milestone::before{content:'';position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:1px;height:8px;background:var(--border2);}
-.milestone-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;}
-.milestone-val{font-size:10px;color:var(--text2);}
-.area-progress-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;}
-.area-prog-item{background:var(--bg3);border-radius:var(--radius-sm);padding:10px 12px;display:flex;align-items:center;gap:10px;}
-.area-prog-icon{font-size:16px;}
-.area-prog-info{flex:1;min-width:0;}
-.area-prog-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.area-prog-bar{height:3px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;}
-.area-prog-fill{height:100%;border-radius:2px;transition:width .4s;}
-.area-prog-count{font-size:10px;color:var(--text3);white-space:nowrap;}
-.area-prog-check{font-size:14px;}
+/* ── PROGRESS BAR ── */
+.progress-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px;box-shadow:var(--shadow);}
+.progress-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.progress-hdr h3{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;}
+.progress-pct{font-size:22px;font-weight:600;letter-spacing:-.02em;font-family:'JetBrains Mono',monospace;}
+.progress-track{height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:8px;}
+.progress-fill{height:100%;border-radius:3px;background:var(--text);transition:width .5s cubic-bezier(.4,0,.2,1);}
+.progress-msg{font-size:11px;color:var(--text3);text-align:center;margin-bottom:14px;}
+.area-prog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;}
+.area-prog-item{background:var(--surface2);border-radius:var(--radius-sm);padding:8px 10px;display:flex;align-items:center;gap:8px;}
+.area-prog-name{font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;}
+.area-prog-track{flex:1;height:2px;background:var(--border);border-radius:1px;overflow:hidden;}
+.area-prog-fill{height:100%;border-radius:1px;}
+.area-prog-count{font-size:10px;color:var(--text3);white-space:nowrap;font-family:'JetBrains Mono',monospace;}
 
-/* HISTORY */
-.history-list{display:flex;flex-direction:column;gap:12px;}
-.history-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .15s;}
+/* ── START AUDIT ── */
+.start-hero{text-align:center;padding:32px 16px 24px;}
+.start-hero h1{font-size:22px;font-weight:600;letter-spacing:-.02em;margin-bottom:6px;}
+.start-hero p{font-size:13px;color:var(--text3);max-width:460px;margin:0 auto 24px;}
+.area-mode-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:24px;}
+.area-mode-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow);}
+.area-mode-card:hover{border-color:var(--border2);}
+.area-mode-card.selected{border-color:var(--text);background:var(--text);color:var(--surface);}
+.area-mode-card.selected .area-sub{color:rgba(255,255,255,.5);}
+.area-mode-icon{font-size:20px;margin-bottom:7px;}
+.area-mode-title{font-size:12px;font-weight:600;}
+
+/* ── HISTORY ── */
+.history-list{display:flex;flex-direction:column;gap:8px;}
+.history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;transition:all .12s;box-shadow:var(--shadow);}
 .history-item:hover{border-color:var(--border2);}
-.history-date{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace;min-width:90px;}
-.history-score{font-size:22px;font-weight:600;min-width:60px;}
+.history-date{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:80px;}
+.history-score{font-size:20px;font-weight:600;letter-spacing:-.02em;min-width:50px;font-family:'JetBrains Mono',monospace;}
 
-/* FLAGS */
-.flags-list{display:flex;flex-direction:column;gap:8px;}
-.flag-item{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:14px;}
-.flag-area-tag{font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:var(--red-dim);color:var(--red);white-space:nowrap;}
-.flag-text{flex:1;font-size:13px;}
-.flag-id{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:1px;}
-.flag-score-big{font-size:20px;font-weight:700;color:var(--red);}
+/* ── FLAGS ── */
+.flags-list{display:flex;flex-direction:column;gap:6px;}
+.flag-item{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--radius);padding:12px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+.flag-area-tag{font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;background:var(--red-bg);color:var(--red);white-space:nowrap;}
+.flag-text{flex:1;font-size:12px;font-weight:500;}
+.flag-id-text{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+.flag-score-big{font-size:18px;font-weight:600;color:var(--red);font-family:'JetBrains Mono',monospace;}
 
-/* SETTINGS */
-.settings-section{margin-bottom:28px;}
-.settings-title{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
-.settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);}
+/* ── SETTINGS ── */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:860px;}
+.settings-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+.settings-sec-title{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
 .settings-row:last-child{border-bottom:none;}
-.settings-row-label{font-size:13px;}
-.settings-row-sub{font-size:11px;color:var(--text3);margin-top:2px;}
-.settings-input{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace;width:260px;}
-.settings-input:focus{outline:none;border-color:var(--accent);}
-.toggle{width:40px;height:22px;background:var(--bg4);border-radius:11px;cursor:pointer;position:relative;transition:background .2s;border:none;}
-.toggle.on{background:var(--accent);}
-.toggle::after{content:'';width:16px;height:16px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;}
-.toggle.on::after{transform:translateX(18px);}
+.settings-row-label{font-size:12px;font-weight:500;}
+.settings-row-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.settings-input{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;font-size:11px;color:var(--text);font-family:'JetBrains Mono',monospace;width:220px;}
+.settings-input:focus{outline:none;border-color:var(--text);}
+.pin-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pin-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;}
+.pin-card-role{font-size:11px;font-weight:600;margin-bottom:2px;}
+.pin-card-current{font-size:10px;color:var(--text3);margin-bottom:8px;font-family:'JetBrains Mono',monospace;}
+.pin-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px 8px;font-size:13px;color:var(--text);font-family:'JetBrains Mono',monospace;letter-spacing:.15em;margin-bottom:6px;}
+.pin-input:focus{outline:none;border-color:var(--text);}
 
-/* PIN MANAGEMENT */
-.pin-manage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
-.pin-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
-.pin-card-role{font-size:12px;font-weight:600;margin-bottom:4px;}
-.pin-card-current{font-size:11px;color:var(--text3);margin-bottom:10px;font-family:'DM Mono',monospace;}
-.pin-change-input{background:var(--bg4);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:14px;color:var(--text);font-family:'DM Mono',monospace;width:100%;letter-spacing:.2em;margin-bottom:8px;}
-.pin-change-input:focus{outline:none;border-color:var(--accent);}
-
-/* SECTION HEADER */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
-.section-header h1{font-size:20px;font-weight:600;}
-.section-header p{font-size:12px;color:var(--text3);margin-top:2px;}
-.btn-row{display:flex;gap:8px;flex-wrap:wrap;}
-.session-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--blue-dim);color:var(--blue);border-radius:6px;font-size:11px;font-weight:500;}
-.pulse{width:6px;height:6px;border-radius:50%;background:var(--blue);animation:pulse 1.5s infinite;}
+/* ── CLOUD STATUS ── */
+.cloud-indicator{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);}
+.cloud-dot{width:5px;height:5px;border-radius:50%;background:var(--text3);}
+.cloud-dot.ok{background:var(--green);}
+.cloud-dot.err{background:var(--red);}
+.cloud-dot.loading{background:var(--amber);animation:pulse .8s infinite;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* EMPTY */
-.empty{text-align:center;padding:48px 24px;color:var(--text3);}
-.empty-icon{font-size:32px;margin-bottom:12px;}
-.empty p{font-size:14px;}
+/* ── SESSION BADGE ── */
+.session-live{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;background:var(--blue-bg);color:var(--blue);border-radius:20px;font-size:10px;font-weight:500;}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--blue);animation:pulse .8s infinite;}
 
-/* TOAST */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:12px 18px;font-size:13px;display:none;align-items:center;gap:10px;z-index:999;box-shadow:0 4px 24px rgba(0,0,0,.4);}
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:none;align-items:center;justify-content:center;}
+.modal-overlay.show{display:flex;}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;max-width:360px;width:90%;box-shadow:var(--shadow-md);}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:7px;letter-spacing:-.01em;}
+.modal-body{font-size:12px;color:var(--text2);margin-bottom:20px;line-height:1.6;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:var(--surface);border-radius:var(--radius-sm);padding:10px 16px;font-size:12px;display:none;align-items:center;gap:8px;z-index:999;box-shadow:var(--shadow-md);}
 .toast.show{display:flex;}
 
-/* CONFIRM MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;}
-.modal-overlay.show{display:flex;}
-.modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);padding:28px;max-width:380px;width:90%;}
-.modal-title{font-size:16px;font-weight:600;margin-bottom:8px;}
-.modal-body{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6;}
-.modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+/* ── EMPTY ── */
+.empty{text-align:center;padding:48px 24px;color:var(--text3);}
+.empty-icon{font-size:28px;margin-bottom:10px;opacity:.5;}
+.empty p{font-size:13px;}
 
-/* MOBILE */
-.ham{display:none;background:none;border:none;color:var(--text);cursor:pointer;padding:4px;}
+/* ── MOBILE ── */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:99;}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:56px;background:var(--surface);border-top:1px solid var(--border);z-index:98;align-items:stretch;}
+.mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--text3);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border:none;background:none;transition:color .12s;}
+.mobile-nav-item.active{color:var(--text);}
+.mobile-nav-item svg{width:16px;height:16px;}
+.ham{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;}
 
 @media(max-width:768px){
-  /* Layout */
-  .sidebar{transform:translateX(-100%);z-index:200;box-shadow:4px 0 24px rgba(0,0,0,.5);}
+  .sidebar{transform:translateX(-100%);box-shadow:var(--shadow-md);}
   .sidebar.open{transform:translateX(0);}
+  .sidebar-overlay{display:block;}
   .main{margin-left:0;}
   .ham{display:flex;}
-  .topbar{padding:0 14px;gap:8px;}
+  .mobile-nav{display:flex;}
   .topbar-date{display:none;}
-  .content{padding:14px 14px 80px;}
-
-  /* KPIs */
-  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
-  .kpi-card{padding:14px;}
-  .kpi-value{font-size:22px;}
-
-  /* Charts */
-  .charts-row{grid-template-columns:1fr;gap:10px;margin-bottom:16px;}
-  .chart-wrap{height:160px;}
-
-  /* Area cards */
-  .areas-grid{grid-template-columns:1fr 1fr;gap:10px;}
-  .area-big-score{font-size:24px;}
-
-  /* Tables — hide less important cols */
-  .hide-mobile{display:none !important;}
-  tbody td{padding:8px 10px;font-size:12px;}
-  thead th{padding:8px 10px;font-size:10px;}
-  .note-input{width:100px;font-size:11px;}
-
-  /* Audit header */
-  .audit-header{flex-direction:column;align-items:flex-start;gap:10px;}
-  .audit-stats{gap:12px;}
-  .audit-stat-val{font-size:18px;}
-
-  /* Progress */
-  .area-progress-list{grid-template-columns:1fr 1fr;}
-  .progress-pct{font-size:22px;}
-
-  /* Start audit */
-  .audit-mode-grid{grid-template-columns:1fr 1fr;}
-  .start-hero h1{font-size:20px;}
-  .start-hero p{font-size:13px;}
-
-  /* Section headers */
-  .section-header{flex-direction:column;align-items:flex-start;}
-  .btn-row{flex-wrap:wrap;}
-
-  /* Settings */
-  .settings-row{flex-direction:column;align-items:flex-start;gap:8px;}
-  .settings-input{width:100%;}
-  .pin-manage-grid{grid-template-columns:1fr 1fr;}
-
-  /* History */
-  .history-item{flex-wrap:wrap;gap:8px;}
-  .history-date{min-width:unset;width:100%;font-size:11px;}
-
-  /* Topbar buttons */
-  #btn-export span:last-child{display:none;}
-  #btn-tg span:last-child{display:none;}
-
-  /* Overlay for sidebar */
-  .sidebar-overlay{display:block;}
+  .content{padding:14px 14px 72px;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .charts-row{grid-template-columns:1fr;}
+  .areas-grid{grid-template-columns:1fr 1fr;}
+  .settings-grid{grid-template-columns:1fr;}
+  table .hide-m{display:none;}
+  .note-input{width:90px;}
 }
-
 @media(max-width:480px){
   .areas-grid{grid-template-columns:1fr;}
-  .audit-mode-grid{grid-template-columns:1fr;}
+  .area-prog-grid{grid-template-columns:1fr;}
   .kpi-grid{grid-template-columns:repeat(2,1fr);}
-  .area-progress-list{grid-template-columns:1fr;}
-  .pin-manage-grid{grid-template-columns:1fr;}
-  .charts-row{display:none;}
-
-  /* Login card */
-  .login-card{padding:24px 20px;}
-  .num-btn{padding:14px;}
-  .pin-dot{width:42px;height:48px;font-size:18px;}
-
-  /* Bottom nav bar */
-  .mobile-nav{display:flex;}
-
-  /* Table on mobile: make it scrollable */
-  .table-wrap{border-radius:var(--radius-sm);}
-  .note-input{width:80px;}
-  .topbar{height:52px;}
 }
-
-/* Sidebar overlay (tap outside to close) */
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199;}
-
-/* Mobile bottom navigation bar */
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--bg2);border-top:1px solid var(--border);z-index:150;align-items:stretch;}
-.mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--text3);font-size:9px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;transition:color .15s;border:none;background:none;font-family:'DM Sans',sans-serif;padding:0;}
-.mobile-nav-item.active{color:var(--accent);}
-.mobile-nav-item svg{width:18px;height:18px;}
-.mobile-nav-item:active{background:var(--bg3);}
 </style>
 </head>
 <body>
 
-<!-- ============================================================ LOGIN ============================================================ -->
+<!-- LOGIN -->
 <div id="login-screen" class="login-wrap">
   <div class="login-card">
-    <div class="login-logo">
-      <div class="login-logo-mark">NB</div>
+    <div class="login-brand">
+      <div class="login-mark">NB</div>
       <div>
         <h1>NUMA Bali</h1>
         <span>Audit Control System</span>
       </div>
     </div>
-    <div class="login-lang">
+    <div class="login-lang" style="margin-bottom:20px;">
       <button class="lang-btn active" id="ll-en" onclick="setLang('en')">EN</button>
       <button class="lang-btn" id="ll-it" onclick="setLang('it')">IT</button>
       <button class="lang-btn" id="ll-id" onclick="setLang('id')">ID</button>
     </div>
-    <div class="login-label" id="lbl-email">Email</div>
-    <input class="login-input" type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
-    <div class="login-label" id="lbl-password" style="margin-top:14px;">Password</div>
-    <input class="login-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="login-btn" onclick="doLogin()" id="login-btn">
+    <label class="form-label" id="lbl-email">Email</label>
+    <input class="form-input" type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+    <label class="form-label" id="lbl-password">Password</label>
+    <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-submit" onclick="doLogin()" id="login-btn">
       <span id="login-btn-text">Sign in</span>
     </button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
 
-<!-- ============================================================ APP ============================================================ -->
-<div id="app-shell" class="app-shell">
+<!-- APP -->
+<div id="app-shell" style="display:none;min-height:100vh;">
 
-  <!-- Sidebar overlay -->
-  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+  <div class="sidebar-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
 
-  <!-- MOBILE BOTTOM NAV -->
-  <nav class="mobile-nav" id="mobile-nav">
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav">
     <button class="mobile-nav-item active" id="mnav-dashboard" onclick="mobileNav('dashboard')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
-      Dashboard
+      <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+      Overview
     </button>
     <button class="mobile-nav-item" id="mnav-start" onclick="mobileNav('start')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.22 4.97a.75.75 0 010 1.06L7.56 10.69a.75.75 0 01-1.06 0L4.72 8.91a.75.75 0 111.06-1.06l1.25 1.25 3.13-3.13a.75.75 0 011.06 0z"/></svg>
+      <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 5.5l4 2.5-4 2.5V5.5z" fill="currentColor"/></svg>
       Audit
     </button>
     <button class="mobile-nav-item" id="mnav-flags" onclick="mobileNav('flags')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 4.5zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 110-2 1 1 0 010 2z"/></svg>
       Flags
     </button>
     <button class="mobile-nav-item" id="mnav-settings" onclick="mobileNav('settings')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.43a5.5 5.5 0 00-1.45.6l-.3-.18a1 1 0 00-1.37.37l-1 1.73a1 1 0 00.37 1.37l.3.17A5.5 5.5 0 003 8c0 .18.01.35.03.52l-.3.17a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.3-.18c.44.25.93.44 1.45.6V13a1 1 0 002 0v-.43a5.5 5.5 0 001.45-.6l.3.18a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.3-.17c.02-.17.03-.52l.3-.17a1 1 0 00.37-1.37l-1-1.73a1 1 0 00-1.37-.37l-.3.18A5.5 5.5 0 009 2.43V2a1 1 0 00-1-1z"/></svg>
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.5A5.5 5.5 0 003.5 8c0 .2.01.4.04.59L3 8.85a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.55-.32A5.5 5.5 0 007 13.5V14a1 1 0 002 0v-.5a5.5 5.5 0 002.45-1.6l.55.32a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.54-.26A5.5 5.5 0 0013.5 8a5.5 5.5 0 00-3.5-5.12V2.5a1 1 0 00-1-1.5z"/></svg>
       Settings
     </button>
   </nav>
 
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
-    <div class="sb-logo">
-      <div class="sb-logo-mark">NB</div>
-      <h2>NUMA Bali</h2>
-      <span>Audit Control System</span>
+    <div class="sb-brand">
+      <div class="sb-mark">NB</div>
+      <div>
+        <div class="sb-name">NUMA Bali</div>
+        <div class="sb-sub">Audit System</div>
+      </div>
     </div>
     <div style="overflow-y:auto;flex:1;">
       <div class="sb-section">Main</div>
-      <div class="sb-item" id="sbitem-start" onclick="nav('start',this)">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm3.22 4.97a.75.75 0 010 1.06L7.56 10.69a.75.75 0 01-1.06 0L4.72 8.91a.75.75 0 111.06-1.06l1.25 1.25 3.13-3.13a.75.75 0 011.06 0z"/></svg>
-        Start Audit
-      </div>
       <div class="sb-item active" id="sbitem-dashboard" onclick="nav('dashboard',this)">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>
-        Dashboard
+        <svg viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        <span data-i18n="dashboard">Overview</span>
+      </div>
+      <div class="sb-item" id="sbitem-start" onclick="nav('start',this)">
+        <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 5.5l4 2.5-4 2.5V5.5z"/></svg>
+        <span data-i18n="startAudit">Start Audit</span>
       </div>
       <div class="sb-item" id="sbitem-flags" onclick="nav('flags',this)">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3.5a.75.75 0 01.75.75v3a.75.75 0 01-1.5 0v-3A.75.75 0 018 4.5zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
-        Red Flags
-        <span class="sb-score red" id="sb-flag-count">—</span>
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 110-2 1 1 0 010 2z"/></svg>
+        <span data-i18n="redFlags">Red Flags</span>
+        <span class="sb-badge" id="sb-flag-count" style="display:none;">0</span>
       </div>
-      <div class="sb-item" id="sbitem-history" onclick="nav('history',this)" style="display:none;">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM4.5 8a.5.5 0 010-1H7.5V4.5a.5.5 0 011 0V7.5A.5.5 0 018 8H4.5z"/></svg>
-        Audit History
+      <div class="sb-item" id="sbitem-history" onclick="nav('history',this)">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zM4.5 8a.5.5 0 010-1H7V4.5a.5.5 0 011 0V7.5A.5.5 0 018 8H4.5z"/></svg>
+        <span data-i18n="history">History</span>
       </div>
-      <div class="sb-section" style="margin-top:8px;" id="sb-areas-label">Areas</div>
+      <div class="sb-section" style="margin-top:6px;" id="sb-areas-label">Areas</div>
       <div id="sb-areas"></div>
     </div>
     <div class="sb-bottom">
       <div class="sb-user">
         <div class="sb-avatar" id="sb-avatar"></div>
-        <div class="sb-user-info">
+        <div style="flex:1;min-width:0;">
           <div class="sb-user-name" id="sb-user-name">—</div>
           <div class="sb-user-role" id="sb-user-role">—</div>
         </div>
       </div>
-      <div class="sb-item" id="sbitem-settings" onclick="nav('settings',this)" style="margin:4px 8px 4px;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.43a5.5 5.5 0 00-1.45.6l-.3-.18a1 1 0 00-1.37.37l-1 1.73a1 1 0 00.37 1.37l.3.17A5.5 5.5 0 003 8c0 .18.01.35.03.52l-.3.17a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.3-.18c.44.25.93.44 1.45.6V13a1 1 0 002 0v-.43a5.5 5.5 0 001.45-.6l.3.18a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.3-.17c.02-.17.03-.34.03-.52s-.01-.35-.03-.52l.3-.17a1 1 0 00.37-1.37l-1-1.73a1 1 0 00-1.37-.37l-.3.18A5.5 5.5 0 009 2.43V2a1 1 0 00-1-1z"/></svg>
+      <div class="sb-item" id="sbitem-settings" onclick="nav('settings',this)">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/></svg>
         <span data-i18n="settings">Settings</span>
       </div>
       <button class="logout-btn" onclick="doLogout()">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
-        <span data-i18n="logout">Logout</span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M11 11l3-3-3-3M14 8H6"/></svg>
+        <span data-i18n="logout">Sign out</span>
       </button>
     </div>
   </aside>
@@ -494,132 +448,146 @@ tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
   <!-- MAIN -->
   <div class="main">
     <div class="topbar">
-      <button class="ham" onclick="document.getElementById('sidebar').classList.toggle('open')">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><rect y="4" width="20" height="2" rx="1"/><rect y="9" width="20" height="2" rx="1"/><rect y="14" width="20" height="2" rx="1"/></svg>
+      <button class="ham" onclick="toggleSidebar()">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor"><rect y="4" width="20" height="1.5" rx=".75"/><rect y="9" width="20" height="1.5" rx=".75"/><rect y="14" width="20" height="1.5" rx=".75"/></svg>
       </button>
-      <span class="topbar-title" id="topbar-title">Dashboard</span>
-      <div class="lang-switcher">
+      <span class="topbar-title" id="topbar-title">Overview</span>
+      <div id="cloud-status" class="cloud-indicator" style="margin-left:auto;">
+        <div class="cloud-dot loading" id="cloud-dot"></div>
+        <span id="cloud-msg">Connecting</span>
+      </div>
+      <div class="lang-btns">
         <button class="lang-btn active" id="lb-en" onclick="setLang('en')">EN</button>
         <button class="lang-btn" id="lb-it" onclick="setLang('it')">IT</button>
         <button class="lang-btn" id="lb-id" onclick="setLang('id')">ID</button>
       </div>
-      <span id="cloud-status" style="display:flex;align-items:center;gap:4px;margin-left:auto;">
-        <span style="color:#555e78;font-size:10px;">○</span>
-        <span style="color:var(--text2);font-size:11px;">Connecting...</span>
-      </span>
-      <span class="topbar-date" id="topbar-date"></span>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <svg id="theme-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 11a3 3 0 110-6 3 3 0 010 6zm0-8a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1A.75.75 0 018 3zm0 9.5a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1A.75.75 0 018 12.5zm4.95-8.61a.75.75 0 010 1.06l-.71.71a.75.75 0 01-1.06-1.06l.71-.71a.75.75 0 011.06 0zM4.76 11.55a.75.75 0 010 1.06l-.71.71a.75.75 0 01-1.06-1.06l.71-.71a.75.75 0 011.06 0zM15.25 8a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1A.75.75 0 0115.25 8zM3.5 8a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1A.75.75 0 013.5 8zM12.95 11.55a.75.75 0 011.06 0l.71.71a.75.75 0 01-1.06 1.06l-.71-.71a.75.75 0 010-1.06zM3.05 3.95a.75.75 0 011.06 0l.71.71A.75.75 0 013.76 5.72l-.71-.71a.75.75 0 010-1.06z"/>
+        </svg>
+      </button>
       <button class="btn btn-ghost" onclick="exportPDF()" id="btn-export" style="display:none;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 00-1 1v12a1 1 0 001 1h6a1 1 0 001-1V5.414L9.586 3H5zM4 2a2 2 0 012-2h3.586a1 1 0 01.707.293l2.414 2.414A1 1 0 0113 3.414V14a2 2 0 01-2 2H5a2 2 0 01-2-2V2z"/></svg>
-        <span data-i18n="exportPdf">Export PDF</span>
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M5 1a1 1 0 00-1 1v12a1 1 0 001 1h6a1 1 0 001-1V5.414L9.586 3H5zM4 2a2 2 0 012-2h3.586a1 1 0 01.707.293l2.414 2.414A1 1 0 0113 3.414V14a2 2 0 01-2 2H5a2 2 0 01-2-2V2z"/></svg>
+        PDF
       </button>
       <button class="btn btn-tg" onclick="sendTelegramReport()" id="btn-tg" style="display:none;">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.67l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.834.93l-.566-.041z"/></svg>
-        <span data-i18n="sendReportBtn">Send Report</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.67l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.834.93l-.566-.041z"/></svg>
+        Report
       </button>
     </div>
 
     <div class="content" id="main-content">
 
-      <!-- START AUDIT -->
-      <div class="page" id="page-start">
-        <div class="start-hero">
-          <h1>Start New Audit Session</h1>
-          <p>All scores will reset to 0. Walk through each area, score every item, then save to cloud when done.</p>
-          <div id="active-session-warn" style="display:none;background:var(--amber-dim);border:1px solid rgba(245,166,35,.3);border-radius:10px;padding:14px 20px;margin-bottom:24px;font-size:13px;color:var(--amber);">
-            ⚠️ There is already an active session in progress. Starting a new one will reset all current scores.
-          </div>
-        </div>
-        <div style="max-width:700px;margin:0 auto;">
-          <div style="margin-bottom:20px;">
-            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Select areas to audit</div>
-            <div class="audit-mode-grid" id="audit-mode-grid"></div>
-          </div>
-          <div style="margin-bottom:20px;">
-            <div style="font-size:12px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;">Auditor note (optional)</div>
-            <input id="session-note" class="settings-input" style="width:100%;font-family:'DM Sans',sans-serif;" placeholder="e.g. Surprise audit — unannounced">
-          </div>
-          <div style="display:flex;gap:10px;justify-content:center;">
-            <button class="btn btn-start" onclick="confirmStartAudit()">
-              Start Audit Session →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- DASHBOARD -->
+      <!-- DASHBOARD / OVERVIEW -->
       <div class="page active" id="page-dashboard">
-        <div class="section-header">
+        <div class="sec-hdr">
           <div>
-            <h1>Operations Overview</h1>
+            <h1 data-i18n="operationsOverview" id="sh-dashboard">Overview</h1>
             <p>NUMA Bali Resort · Sideman, Bali</p>
           </div>
-          <div class="btn-row" id="dash-session-badge"></div>
+          <div class="btn-row" id="dash-badge-row"></div>
+        </div>
+        <!-- Historical trend (shown when sessions exist) -->
+        <div id="trend-section" style="display:none;">
+          <div class="trend-card">
+            <div class="trend-header">
+              <div class="trend-title" data-i18n="scoreByArea">Score trend — all sessions</div>
+              <div class="trend-legend" id="trend-legend"></div>
+            </div>
+            <div class="chart-wrap"><canvas id="chart-trend"></canvas></div>
+          </div>
         </div>
         <div class="kpi-grid" id="kpi-grid"></div>
-        <div class="charts-row">
+        <div class="charts-row" id="charts-row">
           <div class="chart-card">
-            <div class="chart-title" id="ct-bar">Score by area</div>
+            <div class="chart-title" id="ct-bar" data-i18n="scoreByArea">Score by area</div>
             <div class="chart-wrap"><canvas id="chart-bar"></canvas></div>
           </div>
           <div class="chart-card">
-            <div class="chart-title" id="ct-radar">Quality radar</div>
+            <div class="chart-title" id="ct-radar" data-i18n="qualityRadar">Quality radar</div>
             <div class="chart-wrap"><canvas id="chart-radar"></canvas></div>
           </div>
         </div>
         <div class="areas-grid" id="areas-grid"></div>
       </div>
 
+      <!-- START AUDIT -->
+      <div class="page" id="page-start">
+        <div class="start-hero">
+          <h1 data-i18n="startNew" id="sh-start">Start New Audit</h1>
+          <p data-i18n="startDesc" id="start-desc">All scores reset to 0. Score every item then save to cloud.</p>
+          <div id="active-warn" style="display:none;background:var(--amber-bg);border:1px solid var(--amber);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:16px;">
+            ⚠️ Active session in progress — starting new will reset all scores.
+          </div>
+        </div>
+        <div style="max-width:680px;margin:0 auto;">
+          <div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;" data-i18n="selectAreas">Select areas</div>
+          <div class="area-mode-grid" id="audit-mode-grid"></div>
+          <div style="margin:16px 0;">
+            <div style="font-size:10px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;" data-i18n="auditorNote">Note</div>
+            <input id="session-note" class="form-input" placeholder="e.g. Surprise audit — unannounced" style="margin-bottom:0;">
+          </div>
+          <div style="text-align:center;">
+            <button class="btn btn-primary" style="padding:10px 24px;font-size:13px;" onclick="confirmStartAudit()" data-i18n="startBtn">Start Audit →</button>
+          </div>
+        </div>
+      </div>
+
       <!-- AREA PAGES -->
       <div id="area-pages"></div>
 
-      <!-- RED FLAGS -->
+      <!-- FLAGS -->
       <div class="page" id="page-flags">
-        <div class="section-header">
-          <div><h1>Red Flags</h1><p>Items with score ≤ 2 on Critical or high-weight checks</p></div>
-          <button class="btn btn-tg" onclick="sendTelegramReport()" data-i18n="sendReportBtn">Send to Telegram</button>
+        <div class="sec-hdr">
+          <div><h1 id="sh-flags" data-i18n="redFlags">Red Flags</h1><p data-i18n="flagsDesc">Items with score ≤ 2 on critical or high-weight checks</p></div>
+          <button class="btn btn-tg" onclick="sendTelegramReport()">Send Report</button>
         </div>
         <div class="flags-list" id="flags-list"></div>
       </div>
 
       <!-- HISTORY -->
       <div class="page" id="page-history">
-        <div class="section-header">
-          <div><h1>Audit History</h1><p>All saved sessions — cloud synced</p></div>
-          <button class="btn btn-primary" onclick="saveCurrentSession()" data-i18n="saveCurrentSession">Save Current Session</button>
+        <div class="sec-hdr">
+          <div><h1 id="sh-history" data-i18n="history">Audit History</h1><p data-i18n="historyDesc">All saved sessions — cloud synced</p></div>
+          <button class="btn btn-primary" onclick="saveCurrentSession()" data-i18n="saveCurrentSession">Save Session</button>
         </div>
         <div id="history-content"></div>
       </div>
 
       <!-- SETTINGS -->
       <div class="page" id="page-settings">
-        <div class="section-header"><div><h1 id="sh-settings" data-i18n="settings">Settings</h1><p data-i18n="settingsDesc">Telegram, preferences, PIN management</p></div></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:900px;">
-          <div class="card">
-            <div class="settings-section">
-              <div class="settings-title" data-i18n="telegramTitle">Telegram Integration</div>
-              <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.7;">
-                Bot: <code style="color:var(--accent);">@numabali_audit_bot</code><br>
-                Token & Chat ID configurati nel sistema.<br>
-                PDF inviato automaticamente al Save Session.
-              </div>
-              <div class="settings-row">
-                <div><div class="settings-row-label">Auditor name</div><div class="settings-row-sub">Shown in reports</div></div>
-                <input class="settings-input" id="auditor-name" placeholder="Giorgio" oninput="saveTGSettings()" style="width:160px;">
-              </div>
-              <div class="settings-row">
-                <div><div class="settings-row-label">Auto-notify on save</div></div>
-                <button class="toggle" id="tg-auto" onclick="toggleTGAuto()"></button>
-              </div>
-              <div style="margin-top:14px;display:flex;gap:8px;">
-                <button class="btn btn-tg" onclick="testTelegram()">Test</button>
-                <button class="btn btn-primary" onclick="sendTelegramReport()">Send Report</button>
-              </div>
+        <div class="sec-hdr"><div><h1 id="sh-settings" data-i18n="settings">Settings</h1></div></div>
+        <div class="settings-grid">
+          <div class="settings-card">
+            <div class="settings-sec-title" data-i18n="telegramTitle">Telegram</div>
+            <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.7;border:1px solid var(--border);">
+              Bot: <code style="font-family:'JetBrains Mono',monospace;color:var(--text);">@numabali_audit_bot</code><br>
+              Token & credentials secured via Cloudflare Worker.
+            </div>
+            <div class="settings-row">
+              <div><div class="settings-row-label" data-i18n="auditorNameLabel">Auditor name</div></div>
+              <input class="settings-input" id="auditor-name" placeholder="Giorgio" oninput="localStorage.setItem('auditor_name',this.value)" style="width:140px;">
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button class="btn btn-tg" onclick="sendTelegramReport()">Send Full Report</button>
             </div>
           </div>
-          <div class="card" id="pin-settings-card">
-            <div class="settings-section">
-              <div class="settings-title" data-i18n="pinManagement">PIN Management</div>
-              <div class="pin-manage-grid" id="pin-manage-grid"></div>
+          <div class="settings-card" id="pin-card">
+            <div class="settings-sec-title" data-i18n="pinManagement">Access</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:14px;">
+              Login managed via Supabase Auth.<br>
+              Add users in Supabase → Authentication → Users.
+            </div>
+            <div class="settings-row">
+              <div><div class="settings-row-label">Logged in as</div></div>
+              <div style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;" id="settings-email">—</div>
+            </div>
+            <div class="settings-row">
+              <div><div class="settings-row-label">Role</div></div>
+              <div style="font-size:11px;color:var(--text2);" id="settings-role">—</div>
+            </div>
+            <div style="margin-top:12px;">
+              <button class="btn btn-danger" onclick="doLogout()" data-i18n="logout">Sign out</button>
             </div>
           </div>
         </div>
@@ -629,14 +597,14 @@ tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
   </div>
 </div>
 
-<!-- CONFIRM MODAL -->
+<!-- MODAL -->
 <div class="modal-overlay" id="modal">
   <div class="modal-box">
     <div class="modal-title" id="modal-title">Confirm</div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-danger" id="modal-confirm-btn">Confirm</button>
+      <button class="btn btn-danger" id="modal-btn">Confirm</button>
     </div>
   </div>
 </div>
@@ -644,10 +612,28 @@ tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
 <!-- TOAST -->
 <div class="toast" id="toast">
   <span id="toast-icon">✓</span>
-  <span id="toast-msg">Saved</span>
+  <span id="toast-msg"></span>
 </div>
 
 <script>
+// ── CONFIG ──
+const SB_URL='https://neziuncmalmrhqvkkerh.supabase.co';
+const SB_KEY='sb_publishable_gpfz_C0HjbKwTMOP9zlxvA__SDd_zgW';
+const WORKER_URL='https://numa-audit.giorgio-troia2021.workers.dev';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+
+// ── STATE ──
+var currentRole=null;
+var currentUser=null;
+var auditActive=false;
+var selectedAreas=null;
+var LANG=localStorage.getItem('numa_lang')||'en';
+var barChart=null,radarChart=null,trendChart=null;
+</script>
+<script>
+// =========================================================
+// I18N
+// =========================================================
 // =========================================================
 // I18N — TRANSLATIONS
 // =========================================================
@@ -1096,143 +1082,137 @@ var WORKER_URL_DEFAULT='https://numa-audit.giorgio-troia2021.workers.dev';
 var WORKER_URL_DEFAULT='https://numa-audit.giorgio-troia2021.workers.dev';
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
-// =========================================================
-// ROLES & PINS
-// =========================================================
-var ROLE_DEFS={
-  admin:    {label:'Admin — Giorgio',      color:'var(--blue)',   bg:'rgba(77,142,240,.15)',  avatar:'GI', canEdit:true,  canHistory:true,  canSettings:true,  areas:null},
-  manager:  {label:'Manager Bali',         color:'var(--green)',  bg:'rgba(34,201,135,.15)', avatar:'MG', canEdit:true,  canHistory:true,  canSettings:false, areas:null},
-  area_housekeeping:{label:'Housekeeping', color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'HK', canEdit:true,  canHistory:false, canSettings:false, areas:['rooms_ayu','rooms_lestari','rooms_santai']},
-  area_restaurant:  {label:'Restaurant',   color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'RS', canEdit:true,  canHistory:false, canSettings:false, areas:['restaurant']},
-  area_spa:         {label:'Spa',          color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'SP', canEdit:true,  canHistory:false, canSettings:false, areas:['spa']},
-  area_security:    {label:'Security',     color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'SC', canEdit:true,  canHistory:false, canSettings:false, areas:['parking']},
-  area_laundry:     {label:'Laundry',      color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'LN', canEdit:true,  canHistory:false, canSettings:false, areas:['laundry']},
-  area_lobby:       {label:'Lobby',        color:'var(--amber)', bg:'rgba(245,166,35,.15)', avatar:'LB', canEdit:true,  canHistory:false, canSettings:false, areas:['lobby']},
-  investor: {label:'Investor — Read Only', color:'var(--text2)', bg:'rgba(136,144,168,.1)', avatar:'IV', canEdit:false, canHistory:true,  canSettings:false, areas:null},
+
+function tr(key){ try{ return (I18N[LANG]||I18N['en'])[key]||I18N['en'][key]||key; }catch(e){return key;} }
+function trArea(key){ try{ return (I18N[LANG]||I18N['en']).areaNames[key]||I18N['en'].areaNames[key]||AREAS[key]?.name||key; }catch(e){return key;} }
+function trResp(key){ try{ return (I18N[LANG]||I18N['en']).responsible[key]||I18N['en'].responsible[key]||key; }catch(e){return key;} }
+
+
+var ITEM_NAMES = {
+  en: {
+    "RM-001":"Soap labels intact","RM-002":"Slippers & scale condition",
+    "RM-003":"Curtains clean & unstained","RM-004":"Cushions & Bed Linen",
+    "RM-005":"Core amenities (soap/shampoo/cond.)","RM-006":"Extras — lotion, vanity, dental",
+    "RM-007":"Pillow / Spa / Comp. menu","RM-008":"Dust-free surfaces",
+    "RM-009":"Dyson condition & filters","RM-010":"Notebook and pen",
+    "RM-011":"Glass & bottle","RM-012":"Nespresso & Tea Boiler",
+    "RM-013":"Sink, corner sink & mirror","RM-014":"Fridge clean & working",
+    "RM-015":"Complementary fridge setup","RM-016":"Shower soap holder",
+    "RM-017":"Smoking signage — balcony","RM-018":"Safety box & wardrobe",
+    "RM-019":"Hammock & outdoor furniture / Firepit",
+    "RM-020":"Sink filters working","RM-021":"Pool water clarity & chemistry",
+    "RM-022":"Sunbeds & towels condition",
+    "RS-001":"Dishes, glasses & cutlery","RS-002":"Beverage quality",
+    "RS-003":"Kitchen cleanliness","RS-004":"Menu condition",
+    "RS-005":"Menu holder condition","RS-006":"Tables & chairs organized",
+    "RS-007":"Floor cleanliness","RS-008":"Curtains condition",
+    "RS-009":"Music active","RS-010":"4 Mini towels positioned",
+    "RS-011":"Soap labels intact","RS-012":"Wood pillar secure",
+    "RS-013":"Public restroom","RS-014":"Cabinet clean & organized",
+    "RS-015":"Oil & vinegar bottles","RS-016":"Sanitizer inventory",
+    "RS-017":"Napkin cleanliness","RS-018":"Service speed & attitude",
+    "RS-019":"Sink filters working","RS-020":"Uniforms clean & tidy",
+    "ST-003":"Spa cleanliness","ST-004":"Spa treatment quality",
+    "ST-005":"Spa amenities","ST-006":"Spa environment",
+    "MT-001":"Water drainage, no clogging","MT-003":"Fabric & handles not damaged",
+    "MT-004":"Wooden holders clean","MT-005":"No puddles / slippery spots",
+    "MT-006":"Cleanliness","MT-007":"Motorbike arrangement",
+    "MT-008":"Wooden railing & rope","MT-009":"Parking sign condition",
+    "MT-010":"Parking wall condition","MT-011":"NUMA BALI sign condition",
+    "LD-001":"Laundry area clean & organized","LD-003":"Stock levels maintained",
+    "LD-004":"Towels & kimonos quality","LD-005":"Cushions & Bed Linen quality",
+    "AM-001":"Music active in lobby","AM-002":"Furniture & decorations",
+    "AM-003":"Lighting functional","AM-004":"Cleanliness",
+    "AM-005":"Uniforms clean & tidy","AM-006":"Correct English in guest chats",
+    "AM-007":"Check-in procedure followed","AM-008":"Security handles guest luggage",
+    "AM-009":"Guest seating area","AM-010":"Umbrellas in good condition",
+    "AM-011":"Pathway after rain","AM-012":"Staff behavior & attitude"
+  },
+  it: {
+    "RM-001":"Etichette sapone integre","RM-002":"Ciabatte e bilancia in ordine",
+    "RM-003":"Tende pulite e senza macchie","RM-004":"Cuscini e biancheria letto",
+    "RM-005":"Amenità base (sapone/shampoo/balsamo)","RM-006":"Extra — lozione, beauty kit, kit dentale",
+    "RM-007":"Menu cuscini / Spa / Complementari","RM-008":"Superfici pulite senza polvere",
+    "RM-009":"Dyson funzionante e filtri puliti","RM-010":"Taccuino e penna",
+    "RM-011":"Bicchieri e bottiglia","RM-012":"Nespresso e bollitore",
+    "RM-013":"Lavandino, angolo e specchio","RM-014":"Frigo pulito e funzionante",
+    "RM-015":"Setup frigo complementare","RM-016":"Portasapone doccia",
+    "RM-017":"Segnaletica fumatori — balcone","RM-018":"Cassaforte e armadio",
+    "RM-019":"Amaca e mobili esterni / Focolare",
+    "RM-020":"Filtri lavandino funzionanti","RM-021":"Chiarezza e chimica piscina",
+    "RM-022":"Lettini e asciugamani",
+    "RS-001":"Piatti, bicchieri e posate","RS-002":"Qualità bevande",
+    "RS-003":"Pulizia cucina","RS-004":"Condizione menu",
+    "RS-005":"Condizione porta-menu","RS-006":"Tavoli e sedie organizzati",
+    "RS-007":"Pulizia pavimento","RS-008":"Condizione tende",
+    "RS-009":"Musica attiva","RS-010":"4 Mini asciugamani posizionati",
+    "RS-011":"Etichette sapone integre","RS-012":"Pilastro in legno sicuro",
+    "RS-013":"Bagno pubblico","RS-014":"Armadietto pulito e ordinato",
+    "RS-015":"Bottiglie olio e aceto","RS-016":"Inventario igienizzanti",
+    "RS-017":"Pulizia tovaglioli","RS-018":"Velocità e attitudine del servizio",
+    "RS-019":"Filtri lavandino funzionanti","RS-020":"Divise pulite e in ordine",
+    "ST-003":"Pulizia spa","ST-004":"Qualità trattamenti spa",
+    "ST-005":"Attrezzature spa","ST-006":"Ambiente spa",
+    "MT-001":"Drenaggio acqua, nessun intasamento","MT-003":"Tessuto e maniglie non danneggiati",
+    "MT-004":"Supporti in legno puliti","MT-005":"Nessuna pozzanghera o zona scivolosa",
+    "MT-006":"Pulizia","MT-007":"Disposizione motociclette",
+    "MT-008":"Ringhiera in legno e corda","MT-009":"Segnaletica parcheggio",
+    "MT-010":"Muri parcheggio","MT-011":"Insegna NUMA BALI",
+    "LD-001":"Area lavanderia pulita e ordinata","LD-003":"Livelli scorte mantenuti",
+    "LD-004":"Qualità asciugamani e kimono","LD-005":"Qualità cuscini e biancheria",
+    "AM-001":"Musica attiva in lobby","AM-002":"Mobili e decorazioni",
+    "AM-003":"Illuminazione funzionante","AM-004":"Pulizia",
+    "AM-005":"Divise pulite e in ordine","AM-006":"Inglese corretto nelle chat con ospiti",
+    "AM-007":"Procedura check-in seguita","AM-008":"Sicurezza gestisce bagagli ospiti",
+    "AM-009":"Area seduta ospiti","AM-010":"Ombrelloni in buone condizioni",
+    "AM-011":"Percorso dopo la pioggia","AM-012":"Comportamento e attitudine del personale"
+  },
+  id: {
+    "RM-001":"Label sabun utuh","RM-002":"Sandal & timbangan kondisi baik",
+    "RM-003":"Tirai bersih & tidak bernoda","RM-004":"Bantal & sprei tempat tidur",
+    "RM-005":"Perlengkapan dasar (sabun/sampo/kondisioner)","RM-006":"Ekstra — losion, kit kecantikan, kit gigi",
+    "RM-007":"Menu bantal / Spa / Komplementer","RM-008":"Permukaan bersih bebas debu",
+    "RM-009":"Kondisi Dyson & filter","RM-010":"Buku catatan dan pena",
+    "RM-011":"Gelas & botol","RM-012":"Nespresso & pemanas air",
+    "RM-013":"Wastafel, sudut & cermin","RM-014":"Kulkas bersih & berfungsi",
+    "RM-015":"Pengaturan kulkas komplementer","RM-016":"Tempat sabun shower",
+    "RM-017":"Papan tanda area merokok — balkon","RM-018":"Brankas & lemari",
+    "RM-019":"Hammock & furnitur luar / Perapian",
+    "RM-020":"Filter wastafel berfungsi","RM-021":"Kejernihan & kimia kolam renang",
+    "RM-022":"Kursi berjemur & handuk",
+    "RS-001":"Piring, gelas & peralatan makan","RS-002":"Kualitas minuman",
+    "RS-003":"Kebersihan dapur","RS-004":"Kondisi menu",
+    "RS-005":"Kondisi tempat menu","RS-006":"Meja & kursi tertata",
+    "RS-007":"Kebersihan lantai","RS-008":"Kondisi tirai",
+    "RS-009":"Musik aktif","RS-010":"4 Mini handuk terpasang",
+    "RS-011":"Label sabun utuh","RS-012":"Pilar kayu aman",
+    "RS-013":"Toilet umum","RS-014":"Lemari bersih & tertata",
+    "RS-015":"Botol minyak & cuka","RS-016":"Inventaris hand sanitizer",
+    "RS-017":"Kebersihan serbet","RS-018":"Kecepatan & sikap pelayanan",
+    "RS-019":"Filter wastafel berfungsi","RS-020":"Seragam bersih & rapi",
+    "ST-003":"Kebersihan spa","ST-004":"Kualitas perawatan spa",
+    "ST-005":"Perlengkapan spa","ST-006":"Lingkungan spa",
+    "MT-001":"Drainase air, tidak tersumbat","MT-003":"Kain & pegangan tidak rusak",
+    "MT-004":"Pemegang kayu bersih","MT-005":"Tidak ada genangan / area licin",
+    "MT-006":"Kebersihan","MT-007":"Penataan motor",
+    "MT-008":"Pagar kayu & tali","MT-009":"Papan tanda parkir",
+    "MT-010":"Dinding parkir","MT-011":"Papan NUMA BALI",
+    "LD-001":"Area laundri bersih & tertata","LD-003":"Tingkat stok terjaga",
+    "LD-004":"Kualitas handuk & kimono","LD-005":"Kualitas bantal & sprei",
+    "AM-001":"Musik aktif di lobi","AM-002":"Furnitur & dekorasi",
+    "AM-003":"Pencahayaan berfungsi","AM-004":"Kebersihan",
+    "AM-005":"Seragam bersih & rapi","AM-006":"Bahasa Inggris di chat tamu",
+    "AM-007":"Prosedur check-in diikuti","AM-008":"Keamanan tangani bagasi tamu",
+    "AM-009":"Area duduk tamu","AM-010":"Payung kondisi baik",
+    "AM-011":"Jalur setelah hujan","AM-012":"Perilaku & sikap staf"
+  }
 };
 
-var PINS = {
-  admin:'2024', manager:'1234', area_housekeeping:'1111',
-  area_restaurant:'2222', area_spa:'3333', area_security:'4444',
-  area_laundry:'5555', area_lobby:'6666', investor:'0000'
-};
-
-function loadPins(){
-  const saved=localStorage.getItem('numa_pins');
-  if(saved) try{PINS={...PINS,...JSON.parse(saved)};}catch(e){}
-}
-function savePins(){localStorage.setItem('numa_pins',JSON.stringify(PINS));}
-
-// =========================================================
-// AUTH STATE
-// =========================================================
-var currentRole=null;
-var auditActive=false;
-var selectedAreas=null;
-var currentUser=null;
-
-async function doLogin(){
-  const email=document.getElementById('login-email').value.trim();
-  const password=document.getElementById('login-password').value;
-  const btn=document.getElementById('login-btn');
-  const errEl=document.getElementById('login-error');
-  
-  if(!email||!password){errEl.textContent='Enter email and password';return;}
-  
-  btn.disabled=true;
-  document.getElementById('login-btn-text').textContent='Signing in...';
-  errEl.textContent='';
-  
-  try{
-    // Sign in with Supabase Auth
-    const {data,error}=await sb.auth.signInWithPassword({email,password});
-    if(error) throw error;
-    
-    currentUser=data.user;
-    
-    // Get role from user_roles table
-    const {data:roleData,error:roleErr}=await sb.from('user_roles').select('role').eq('id',data.user.id).single();
-    
-    if(roleErr||!roleData){
-      // Default role based on email if not in table
-      if(email.includes('manager')) currentRole='manager';
-      else if(email.includes('investor')) currentRole='investor';
-      else currentRole='admin';
-    } else {
-      currentRole=roleData.role;
-    }
-    
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app-shell').classList.add('visible');
-    setupAppForRole();
-    initApp();
-    
-  }catch(e){
-    errEl.textContent=e.message||'Login failed — check email and password';
-    btn.disabled=false;
-    document.getElementById('login-btn-text').textContent='Sign in';
-  }
+function trItem(itemId, fallback){
+  try{ return (ITEM_NAMES[LANG]||ITEM_NAMES.en)[itemId] || ITEM_NAMES.en[itemId] || fallback || itemId; }catch(e){ return fallback||itemId; }
 }
 
-async function doLogout(){
-  await sb.auth.signOut();
-  currentRole=null; currentUser=null; auditActive=false;
-  document.getElementById('app-shell').classList.remove('visible');
-  document.getElementById('login-screen').style.display='flex';
-  document.getElementById('login-email').value='';
-  document.getElementById('login-password').value='';
-  document.getElementById('login-error').textContent='';
-  document.getElementById('login-btn').disabled=false;
-  document.getElementById('login-btn-text').textContent='Sign in';
-}
-
-// Check existing session on load
-async function checkExistingSession(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(session){
-    currentUser=session.user;
-    const {data:roleData}=await sb.from('user_roles').select('role').eq('id',session.user.id).single();
-    currentRole=roleData?.role||'investor';
-    document.getElementById('login-screen').style.display='none';
-    document.getElementById('app-shell').classList.add('visible');
-    setupAppForRole();
-    initApp();
-  }
-}
-
-function setupAppForRole(){
-  const rd=ROLE_DEFS[currentRole];
-  // avatar
-  const av=document.getElementById('sb-avatar');
-  const email=currentUser?.email||'';
-  const initials=email.substring(0,2).toUpperCase()||rd.avatar;
-  av.textContent=initials; av.style.background=rd.bg; av.style.color=rd.color;
-  document.getElementById('sb-user-name').textContent=email||rd.label;
-  document.getElementById('sb-user-role').textContent=currentRole==='admin'?'Admin — Full access':
-    currentRole==='manager'?'Manager — Full access':
-    currentRole==='investor'?'Investor — Read only':'Area Responsible';
-  // history visibility
-  document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
-  // export/tg buttons
-  document.getElementById('btn-export').style.display=rd.canHistory?'':'none';
-  document.getElementById('btn-tg').style.display=(rd.canEdit||currentRole==='admin')?'':'none';
-  // settings in sidebar — only admin
-  if(currentRole==='admin'){
-    const sbot=document.getElementById('sb-bottom');
-    if(sbot){
-      const existing=sbot.querySelector('.sb-settings-item');
-      if(!existing){
-        const s=document.createElement('div');
-        s.className='sb-item sb-settings-item';
-        s.innerHTML='<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="2.5"/></svg> '+tr('settings');
-        s.onclick=()=>nav('settings',s);
-        const logoutBtn=sbot.querySelector('.logout-btn');
-        if(logoutBtn) sbot.insertBefore(s,logoutBtn);
-        else sbot.appendChild(s);
-      }
-    }
-  }
-}
+function trItem(id,fb){ try{return (ITEM_NAMES[LANG]||ITEM_NAMES.en)[id]||ITEM_NAMES.en[id]||fb||id;}catch(e){return fb||id;} }
 
 // =========================================================
 // AUDIT DATA
@@ -1375,6 +1355,9 @@ var AREAS={
 // =========================================================
 // SCORING ENGINE
 // =========================================================
+// =========================================================
+// SCORING ENGINE
+// =========================================================
 function calcArea(key){
   const items=AREAS[key].items;
   const totalW=items.reduce((s,i)=>s+i.weight,0);
@@ -1406,349 +1389,133 @@ function calcGlobal(){
   return{overallAvg,totalCritical,totalFlags,failed,scores,keys,progressPct,completedItems,totalItems};
 }
 
-// =========================================================
-// COLOR HELPERS
-// =========================================================
-function scoreColor(s){if(s===0)return'var(--text3)';if(s>=4)return'var(--green)';if(s>=3)return'var(--amber)';return'var(--red)';}
-function statusBadge(st){
-  if(st==='PASSED') return`<span class="badge badge-passed">● ${tr('passed')}</span>`;
-  if(st==='BORDERLINE') return`<span class="badge badge-border">◆ ${tr('borderline')}</span>`;
-  if(st==='PENDING') return`<span class="badge" style="background:var(--bg4);color:var(--text3);">○ ${tr('pending')}</span>`;
-  return`<span class="badge badge-failed">✕ ${tr('failedStatus')}</span>`;
-}
-function levelPill(l){
-  if(l==='Critical') return`<span class="level-pill level-critical">${tr('critical')}</span>`;
-  if(l==='Moderate') return`<span class="level-pill level-moderate">${tr('moderate')}</span>`;
-  return`<span class="level-pill level-low">${tr('low')}</span>`;
-}
-function setCloudStatus(state,msg){
-  const el=document.getElementById('cloud-status');
-  if(!el)return;
-  const colors={ok:'#22c987',error:'#f05252',saving:'#f5a623',idle:'#555e78'};
-  const icons={ok:'●',error:'●',saving:'◌',idle:'○'};
-  el.innerHTML=`<span style="color:${colors[state]};font-size:10px;">${icons[state]}</span><span style="color:var(--text2);font-size:11px;margin-left:4px;">${msg}</span>`;
-}
+
 
 // =========================================================
-// PROGRESS BAR
+// COLOR / STATUS HELPERS
 // =========================================================
-function buildProgressBar(){
-  const g=calcGlobal();
-  const pct=g.progressPct;
-  const areaKeys=selectedAreas||Object.keys(AREAS);
-  let milestoneHTML='';
-  [25,50,75,100].forEach(m=>{
-    const reached=pct>=m;
-    milestoneHTML+=`<div class="milestone"><div class="milestone-label" style="color:${reached?'var(--accent)':'var(--text3)'};">${m}%</div></div>`;
-  });
-  let areaProgHTML='';
-  areaKeys.forEach(k=>{
-    const a=AREAS[k];
-    const r=calcArea(k);
-    const done=r.completedCount;
-    const total=r.totalCount;
-    const areaPct=total>0?Math.round(done/total*100):0;
-    const barC=areaPct===100?'var(--green)':areaPct>50?'var(--amber)':'var(--text3)';
-    const checkIcon=areaPct===100?'✓':'';
-    areaProgHTML+=`<div class="area-prog-item">
-      <div class="area-prog-icon">${a.icon}</div>
-      <div class="area-prog-info">
-        <div class="area-prog-name">${trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','')}</div>
-        <div class="area-prog-bar"><div class="area-prog-fill" style="width:${areaPct}%;background:${barC};"></div></div>
-      </div>
-      <div style="text-align:right;">
-        <div class="area-prog-count" style="color:${barC};">${done}/${total}</div>
-        <div class="area-prog-check" style="color:var(--green);">${checkIcon}</div>
-      </div>
-    </div>`;
-  });
-  const statusMsg=pct===0?tr('notStarted'):
-    pct<25?tr('justStarting'):
-    pct<50?tr('almostHalf'):
-    pct<75?tr('overHalf'):
-    pct<100?tr('almostDone'):
-    tr('complete');
-  const existingBar=document.getElementById('progress-bar-section');
-  if(existingBar) existingBar.remove();
-  const barHTML=`<div class="progress-section" id="progress-bar-section">
-    <div class="progress-header">
-      <h3>Audit progress</h3>
-      <div class="progress-pct">${pct}%</div>
-    </div>
-    <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
-    <div class="progress-milestones">${milestoneHTML}</div>
-    <div style="font-size:12px;color:${pct===100?'var(--green)':'var(--text3)'};margin-bottom:14px;text-align:center;">${statusMsg}</div>
-    <div class="area-progress-list">${areaProgHTML}</div>
-    ${pct===100?`<div style="margin-top:16px;text-align:center;"><button class="btn btn-primary" onclick="saveCurrentSession()">☁️ Save Session to Cloud</button></div>`:''}
-  </div>`;
-  const dashContent=document.getElementById('page-dashboard');
-  const kpiGrid=document.getElementById('kpi-grid');
-  kpiGrid.insertAdjacentHTML('beforebegin',barHTML);
+function scoreClass(s){ return s>=4?'g':s>=3?'a':s>0?'r':'n'; }
+function scoreColor(s){ return s>=4?'var(--green)':s>=3?'var(--amber)':s>0?'var(--red)':'var(--text3)'; }
+function statusTag(st){
+  if(st==='PASSED') return `<span class="status-tag tag-pass">● ${tr('passed')}</span>`;
+  if(st==='BORDERLINE') return `<span class="status-tag tag-border">◆ ${tr('borderline')}</span>`;
+  if(st==='PENDING') return `<span class="status-tag tag-pending">○ ${tr('pending')}</span>`;
+  return `<span class="status-tag tag-fail">✕ ${tr('failedStatus')}</span>`;
+}
+function levelTag(l){
+  if(l==='Critical') return `<span class="level-tag lc">${tr('critical')}</span>`;
+  if(l==='Moderate') return `<span class="level-tag lm">${tr('moderate')}</span>`;
+  return `<span class="level-tag ll">${tr('low')}</span>`;
+}
+function setCloud(state,msg){
+  const dot=document.getElementById('cloud-dot');
+  const txt=document.getElementById('cloud-msg');
+  if(!dot||!txt) return;
+  dot.className='cloud-dot'+(state==='ok'?' ok':state==='err'?' err':state==='loading'?' loading':'');
+  txt.textContent=msg;
 }
 
 // =========================================================
-// DASHBOARD
+// THEME
 // =========================================================
-var barChart=null,radarChart=null;
-function buildDashboard(){
-  const g=calcGlobal();
-  const avgFmt=g.overallAvg.toFixed(2);
-  const avgColor=g.overallAvg>=4?'green':g.overallAvg>=3?'amber':'red';
-  if(auditActive){
-    buildProgressBar();
-    document.getElementById('dash-session-badge').innerHTML='<span class="session-badge"><span class="pulse"></span> Session active</span>';
-  } else {
-    const existing=document.getElementById('progress-bar-section');
-    if(existing) existing.remove();
-    document.getElementById('dash-session-badge').innerHTML='';
-  }
-  document.getElementById('kpi-grid').innerHTML=`
-    <div class="kpi-card ${avgColor}"><div class="kpi-label">Overall Score</div><div class="kpi-value ${avgColor}">${avgFmt}<span style="font-size:16px;font-weight:400;color:var(--text3);">/5</span></div><div class="kpi-sub">Weighted avg — all areas</div></div>
-    <div class="kpi-card red"><div class="kpi-label">Areas Failed</div><div class="kpi-value red">${g.failed}</div><div class="kpi-sub">Score below 3.0</div></div>
-    <div class="kpi-card amber"><div class="kpi-label">Critical Issues</div><div class="kpi-value amber">${g.totalCritical}</div><div class="kpi-sub">Items scoring below 3</div></div>
-    <div class="kpi-card blue"><div class="kpi-label">Red Flags</div><div class="kpi-value blue">${g.totalFlags}</div><div class="kpi-sub">Score ≤ 2 on critical items</div></div>
-  `;
-  let ahtml='';
-  g.keys.forEach((k,i)=>{
-    const r=g.scores[i];
-    const a=AREAS[k];
-    const pct=(r.avg/5*100).toFixed(1);
-    const sc=r.avg.toFixed(2);
-    const barC=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
-    const canClick=canAccessArea(k);
-    ahtml+=`<div class="area-card" onclick="${canClick?`nav('area_${k}',null)`:''}" style="${canClick?'':'cursor:default;opacity:.5'}">
-      <div class="area-header"><div><div class="area-name">${trArea(k)}</div><div class="area-sub">${trResp(a.responsible)} · ${a.items.length} ${tr('items')}</div></div><div style="font-size:22px;">${a.icon}</div></div>
-      <div class="area-score-wrap">
-        <div class="area-big-score" style="color:${barC};">${r.avg>0?sc:'—'}</div>
-        <div class="area-score-right">
-          <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${barC};"></div></div>
-          <div class="area-meta">${statusBadge(r.status)}<span class="issues-count">${r.completedCount}/${r.totalCount} done</span></div>
-        </div>
-      </div>
-    </div>`;
-  });
-  document.getElementById('areas-grid').innerHTML=ahtml;
-  buildCharts(g);
-  document.getElementById('sb-flag-count').textContent=g.totalFlags;
-  const cbt=document.getElementById('ct-bar');if(cbt)cbt.textContent=tr('scoreByArea');
-  const crt=document.getElementById('ct-radar');if(crt)crt.textContent=tr('qualityRadar');
+function toggleTheme(){
+  const html=document.documentElement;
+  const isDark=html.getAttribute('data-theme')==='dark';
+  html.setAttribute('data-theme',isDark?'light':'dark');
+  localStorage.setItem('numa_theme',isDark?'light':'dark');
+  updateThemeIcon();
+  if(barChart||radarChart) buildDashboard();
 }
-
-function buildCharts(g){
-  const labels=g.keys.map(k=>AREAS[k].name.replace('Rooms — ',''));
-  const scores=g.scores.map(r=>parseFloat(r.avg.toFixed(2)));
-  const colors=scores.map(s=>s>=4?'rgba(34,201,135,0.7)':s>=3?'rgba(245,166,35,0.7)':s>0?'rgba(240,82,82,0.7)':'rgba(85,94,120,0.4)');
-  const borderC=scores.map(s=>s>=4?'#22c987':s>=3?'#f5a623':s>0?'#f05252':'#555e78');
-  if(barChart) barChart.destroy();
-  const bctx=document.getElementById('chart-bar').getContext('2d');
-  barChart=new Chart(bctx,{type:'bar',data:{labels,datasets:[{data:scores,backgroundColor:colors,borderColor:borderC,borderWidth:1,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' Score: '+(c.raw>0?c.raw.toFixed(2):'Not scored')}}},scales:{x:{min:0,max:5,ticks:{color:'#555e78',font:{size:11}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'rgba(255,255,255,0.06)'}},y:{ticks:{color:'#8890a8',font:{size:11}},grid:{display:false},border:{color:'rgba(255,255,255,0.06)'}}}}});
-  if(radarChart) radarChart.destroy();
-  const rctx=document.getElementById('chart-radar').getContext('2d');
-  radarChart=new Chart(rctx,{type:'radar',data:{labels,datasets:[{label:'Score',data:scores,borderColor:'#22c987',backgroundColor:'rgba(34,201,135,0.1)',pointBackgroundColor:'#22c987',pointRadius:3,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{r:{min:0,max:5,ticks:{stepSize:1,color:'#555e78',font:{size:9},backdropColor:'transparent'},grid:{color:'rgba(255,255,255,0.06)'},pointLabels:{color:'#8890a8',font:{size:10}},angleLines:{color:'rgba(255,255,255,0.04)'}}}}});
+function updateThemeIcon(){
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  document.getElementById('theme-icon').innerHTML=isDark?
+    '<path d="M12.5 8A4.5 4.5 0 014.2 4.2 7 7 0 1011.8 11.8 4.5 4.5 0 0112.5 8z"/>':
+    '<path d="M8 11a3 3 0 110-6 3 3 0 010 6zm0-8a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1A.75.75 0 018 3zm0 9.5a.75.75 0 01.75.75v1a.75.75 0 01-1.5 0v-1A.75.75 0 018 12.5zm4.95-8.61a.75.75 0 010 1.06l-.71.71a.75.75 0 01-1.06-1.06l.71-.71a.75.75 0 011.06 0zM4.76 11.55a.75.75 0 010 1.06l-.71.71a.75.75 0 01-1.06-1.06l.71-.71a.75.75 0 011.06 0zM15.25 8a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1A.75.75 0 0115.25 8zM3.5 8a.75.75 0 01-.75.75h-1a.75.75 0 010-1.5h1A.75.75 0 013.5 8zM12.95 11.55a.75.75 0 011.06 0l.71.71a.75.75 0 01-1.06 1.06l-.71-.71a.75.75 0 010-1.06zM3.05 3.95a.75.75 0 011.06 0l.71.71A.75.75 0 013.76 5.72l-.71-.71a.75.75 0 010-1.06z"/>';
 }
 
 // =========================================================
-// START AUDIT
+// AUTH
 // =========================================================
-function buildStartPage(){
-  const rd=ROLE_DEFS[currentRole];
-  const availKeys=rd.areas||Object.keys(AREAS);
-  document.getElementById('active-session-warn').style.display=auditActive?'block':'none';
-  let html='';
-  availKeys.forEach(k=>{
-    const a=AREAS[k];
-    const r=calcArea(k);
-    const sel=!selectedAreas||selectedAreas.includes(k);
-    html+=`<div class="audit-mode-card ${sel?'selected':''}" id="amc-${k}" onclick="toggleAreaSelect('${k}')">
-      <div class="audit-mode-icon">${a.icon}</div>
-      <div class="audit-mode-title">${a.name}</div>
-      <div class="audit-mode-sub">${a.items.length} items · ${a.responsible}</div>
-    </div>`;
-  });
-  document.getElementById('audit-mode-grid').innerHTML=html;
-}
+var ROLE_DEFS={
+  admin:   {label:'Admin',         canEdit:true, canHistory:true, canSettings:true, areas:null},
+  manager: {label:'Manager',       canEdit:true, canHistory:true, canSettings:false,areas:null},
+  investor:{label:'Investor',      canEdit:false,canHistory:true, canSettings:false,areas:null},
+  area_housekeeping:{label:'Housekeeping',canEdit:true,canHistory:false,canSettings:false,areas:['rooms_ayu','rooms_lestari','rooms_santai']},
+  area_restaurant:  {label:'Restaurant', canEdit:true,canHistory:false,canSettings:false,areas:['restaurant']},
+  area_spa:         {label:'Spa',        canEdit:true,canHistory:false,canSettings:false,areas:['spa']},
+  area_security:    {label:'Security',   canEdit:true,canHistory:false,canSettings:false,areas:['parking']},
+  area_laundry:     {label:'Laundry',    canEdit:true,canHistory:false,canSettings:false,areas:['laundry']},
+  area_lobby:       {label:'Lobby',      canEdit:true,canHistory:false,canSettings:false,areas:['lobby']},
+};
 
-function toggleAreaSelect(k){
-  const card=document.getElementById('amc-'+k);
-  card.classList.toggle('selected');
-}
-
-function confirmStartAudit(){
-  const rd=ROLE_DEFS[currentRole];
-  const availKeys=rd.areas||Object.keys(AREAS);
-  const chosen=availKeys.filter(k=>document.getElementById('amc-'+k)?.classList.contains('selected'));
-  if(!chosen.length){showToast('⚠️',tr('selectAtLeastOne'));return;}
-  showModal(
-    auditActive?'Reset & Start New Audit':'Start New Audit Session',
-    auditActive?`This will reset all current scores for the selected ${chosen.length} area(s). All unsaved data will be lost. Are you sure?`:`Starting a fresh audit for ${chosen.length} area(s). All scores will begin at 0.`,
-    ()=>doStartAudit(chosen),
-    auditActive?'Reset & Start':'Start Audit'
-  );
-}
-
-function doStartAudit(areaKeys){
-  selectedAreas=areaKeys;
-  areaKeys.forEach(k=>{
-    AREAS[k].items.forEach(item=>{item.score=0;item.notes='';});
-  });
-  auditActive=true;
-  buildAreaPages();
-  buildDashboard();
-  buildSidebar();
-  buildFlags();
-  showToast('🚀',tr('startAudit'));
-  nav('dashboard',document.getElementById('sbitem-dashboard'));
-}
-
-// =========================================================
-// AREA PAGES
-// =========================================================
-function canAccessArea(key){
-  const rd=ROLE_DEFS[currentRole];
-  if(!rd) return false;
-  if(rd.areas===null) return true;
-  return rd.areas.includes(key);
-}
-
-function buildAreaPages(){
-  const container=document.getElementById('area-pages');
-  let html='';
-  Object.keys(AREAS).forEach(key=>{
-    html+=`<div class="page" id="page-area_${key}"><div id="area-content-${key}"></div></div>`;
-  });
-  container.innerHTML=html;
-  Object.keys(AREAS).forEach(key=>renderArea(key));
-}
-
-function renderArea(key){
-  const a=AREAS[key];
-  const r=calcArea(key);
-  const canEdit=ROLE_DEFS[currentRole]?.canEdit&&canAccessArea(key);
-  const barC=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
-  const pct=(r.avg/5*100).toFixed(1);
-  let html=`
-    <div class="audit-header">
-      <div class="audit-header-left"><h1>${a.icon} ${trArea(key)}</h1><p>${tr('responsible')}: ${trResp(a.responsible)} · ${a.items.length} ${tr('auditItem')}</p></div>
-      <div class="audit-stats">
-        <div class="audit-stat"><div class="audit-stat-val" style="color:${barC};">${r.avg>0?r.avg.toFixed(2):'—'}</div><div class="audit-stat-label">Score</div></div>
-        <div class="audit-stat"><div class="audit-stat-val" style="color:var(--text2);">${r.completedCount}/${r.totalCount}</div><div class="audit-stat-label">Completed</div></div>
-        <div class="audit-stat"><div class="audit-stat-val" style="color:${r.complianceRate>=80?'var(--green)':'var(--amber)'};">${r.completedCount>0?r.complianceRate+'%':'—'}</div><div class="audit-stat-label">Compliance</div></div>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
-      ${statusBadge(r.status)}
-      <div style="flex:1;min-width:140px;"><div class="bar-track" style="height:6px;"><div class="bar-fill" style="width:${pct}%;background:${barC};"></div></div></div>
-      ${canEdit?`<button class="btn btn-primary" onclick="saveArea('${key}')">Save & Update</button>`:''}
-      ${(canEdit||currentRole==='admin')?`<button class="btn btn-ghost" onclick="sendAreaTelegram('${key}')">Send Report</button>`:''}
-    </div>
-    <div class="table-wrap">
-      <div class="table-toolbar">
-        <button class="filter-btn active" onclick="filterArea('${key}','all',this)">All (${a.items.length})</button>
-        <button class="filter-btn" onclick="filterArea('${key}','critical',this)">Critical</button>
-        <button class="filter-btn" onclick="filterArea('${key}','issues',this)">Issues</button>
-        <button class="filter-btn" onclick="filterArea('${key}','ok',this)">OK (≥4)</button>
-        <button class="filter-btn" onclick="filterArea('${key}','todo',this)">Not scored</button>
-      </div>
-      <div style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>ID</th><th>Audit Item</th><th>Level</th><th class="hide-mobile">Weight</th><th>Score</th><th>Progress</th><th class="hide-mobile">Notes</th></tr></thead>
-        <tbody id="tbody-${key}">`;
-  a.items.forEach((item,idx)=>{
-    const pctItem=(item.score/5*100).toFixed(0);
-    const bC=scoreColor(item.score);
-    html+=`<tr data-level="${item.level}" data-score="${item.score}" data-idx="${idx}">
-      <td><span class="id-tag">${item.id}</span></td>
-      <td style="min-width:180px;font-size:13px;">${trItem(item.id, item.item)}</td>
-      <td>${levelPill(item.level)}</td>
-      <td style="font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">${(item.weight*100).toFixed(0)}%</td>
-      <td>
-        <div class="score-stepper">
-          <button onclick="changeScore('${key}',${idx},-1)" ${!canEdit?'disabled':''}>−</button>
-          <span class="score-val" id="sv-${key}-${idx}" style="color:${bC};">${item.score===0?'—':item.score}</span>
-          <button onclick="changeScore('${key}',${idx},+1)" ${!canEdit?'disabled':''}>+</button>
-        </div>
-      </td>
-      <td>
-        <div class="inline-bar">
-          <div class="inline-bar-track"><div class="inline-bar-fill" id="bar-${key}-${idx}" style="width:${pctItem}%;background:${bC};"></div></div>
-          <span style="font-size:10px;color:var(--text3);min-width:24px;">${item.score>0?pctItem+'%':'—'}</span>
-        </div>
-      </td>
-      <td><input class="note-input" placeholder="Add note..." value="${item.notes}" ${!canEdit?'disabled':''} oninput="AREAS['${key}'].items[${idx}].notes=this.value"></td>
-    </tr>`;
-  });
-  html+=`</tbody></table></div></div>`;
-  document.getElementById('area-content-'+key).innerHTML=html;
-}
-
-function changeScore(key,idx,delta){
-  const item=AREAS[key].items[idx];
-  let s=item.score+delta;
-  if(s<0) s=0;
-  if(s>5) s=5;
-  item.score=s;
-  const svEl=document.getElementById('sv-'+key+'-'+idx);
-  svEl.textContent=s===0?'—':s;
-  svEl.style.color=scoreColor(s);
-  const pct=(s/5*100).toFixed(0);
-  const bEl=document.getElementById('bar-'+key+'-'+idx);
-  bEl.style.width=pct+'%'; bEl.style.background=scoreColor(s);
-  const tr=svEl.closest('tr'); if(tr) tr.setAttribute('data-score',s);
-  if(auditActive){
-    const pg=document.getElementById('progress-bar-section');
-    if(pg) buildProgressBar();
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pwd=document.getElementById('login-password').value;
+  const btn=document.getElementById('login-btn');
+  const err=document.getElementById('login-error');
+  if(!email||!pwd){err.textContent='Enter email and password';return;}
+  btn.disabled=true;
+  document.getElementById('login-btn-text').textContent='Signing in...';
+  err.textContent='';
+  try{
+    const{data,error}=await sb.auth.signInWithPassword({email,password:pwd});
+    if(error) throw error;
+    currentUser=data.user;
+    const{data:rd}=await sb.from('user_roles').select('role').eq('id',data.user.id).single();
+    currentRole=rd?.role||'investor';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-shell').style.display='flex';
+    setupApp();
+    initApp();
+  }catch(e){
+    err.textContent=e.message||'Login failed';
+    btn.disabled=false;
+    document.getElementById('login-btn-text').textContent=tr('signIn');
   }
 }
 
-function filterArea(key,filter,btn){
-  document.querySelectorAll(`#area-content-${key} .filter-btn`).forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll(`#tbody-${key} tr`).forEach(tr=>{
-    const lvl=tr.getAttribute('data-level');
-    const sc=parseInt(tr.getAttribute('data-score')||'0');
-    let show=true;
-    if(filter==='critical') show=lvl==='Critical';
-    else if(filter==='issues') show=sc>0&&sc<3;
-    else if(filter==='ok') show=sc>=4;
-    else if(filter==='todo') show=sc===0;
-    tr.style.display=show?'':'none';
-  });
+async function doLogout(){
+  await sb.auth.signOut();
+  currentRole=null;currentUser=null;auditActive=false;
+  document.getElementById('app-shell').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-error').textContent='';
+  document.getElementById('login-btn').disabled=false;
+  document.getElementById('login-btn-text').textContent=tr('signIn');
 }
 
-function saveArea(key){
-  renderArea(key);
-  buildDashboard();
-  buildFlags();
-  updateSBScores();
-  showToast('✓',tr('areaSaved'));
-
-}
-
-// =========================================================
-// RED FLAGS
-// =========================================================
-function buildFlags(){
-  let flags=[];
-  Object.keys(AREAS).forEach(key=>{
-    AREAS[key].items.forEach(item=>{
-      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08))
-        flags.push({area:AREAS[key].name,key,item:item.item,score:item.score,id:item.id,weight:item.weight});
-    });
-  });
-  flags.sort((a,b)=>a.score-b.score);
-  document.getElementById('sb-flag-count').textContent=flags.length;
-  if(!flags.length){
-    document.getElementById('flags-list').innerHTML='<div class="empty"><div class="empty-icon">✓</div><p>No critical red flags.</p></div>';
-    return;
+async function checkSession(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(session){
+    currentUser=session.user;
+    const{data:rd}=await sb.from('user_roles').select('role').eq('id',session.user.id).single();
+    currentRole=rd?.role||'investor';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-shell').style.display='flex';
+    setupApp();
+    initApp();
   }
-  document.getElementById('flags-list').innerHTML=flags.map(f=>`
-    <div class="flag-item">
-      <span class="flag-area-tag">${trArea(f.key)}</span>
-      <div><div class="flag-text">${trItem(f.id, f.item)}</div><div class="flag-id">${f.id} · weight ${(f.weight*100).toFixed(0)}%</div></div>
-      <div style="text-align:right;"><div class="flag-score-big">${f.score}/5</div><div style="font-size:10px;color:var(--text3);">${f.level}</div></div>
-    </div>`).join('');
 }
 
+function setupApp(){
+  const rd=ROLE_DEFS[currentRole]||ROLE_DEFS.investor;
+  const email=currentUser?.email||'';
+  const initials=email.substring(0,2).toUpperCase();
+  document.getElementById('sb-avatar').textContent=initials;
+  document.getElementById('sb-user-name').textContent=email;
+  document.getElementById('sb-user-role').textContent=rd.label;
+  document.getElementById('settings-email').textContent=email;
+  document.getElementById('settings-role').textContent=rd.label;
+  document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
+  document.getElementById('btn-export').style.display=rd.canHistory?'':'none';
+  document.getElementById('btn-tg').style.display=(currentRole==='admin'||currentRole==='manager')?'':'none';
+}
+
+// =========================================================
+// SUPABASE CLOUD
+// =========================================================
 // =========================================================
 // SUPABASE CLOUD
 // =========================================================
@@ -1801,67 +1568,467 @@ async function deleteSession(sessionId){
   loadHistory();
 }
 
+
+
+async function loadSessionsFromCloud(){
+  setCloud('loading','Loading...');
+  try{
+    const{data,error}=await sb.from('audit_sessions').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    setCloud('ok',data.length+' sessions');
+    setTimeout(()=>setCloud('ok','Cloud ready'),2000);
+    return data;
+  }catch(e){setCloud('err','Offline');return[];}
+}
+
+async function loadSessionScores(sid){
+  const{data,error}=await sb.from('audit_scores').select('*').eq('session_id',sid);
+  if(error) return[];
+  return data;
+}
+
+async function deleteSession(sid){
+  const{error}=await sb.from('audit_sessions').delete().eq('id',sid);
+  if(error){showToast('Error deleting');return;}
+  showToast('Session deleted');
+  loadHistory();
+}
+
+// =========================================================
+// DASHBOARD
+// =========================================================
+async function buildDashboard(){
+  const g=calcGlobal();
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const gridColor=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+  const textColor=isDark?'#5a5a54':'#a8a8a0';
+  const pointColor=isDark?'#f0f0ec':'#1a1a18';
+
+  // Badge
+  const badgeRow=document.getElementById('dash-badge-row');
+  if(badgeRow) badgeRow.innerHTML=auditActive?'<span class="session-live"><span class="live-dot"></span> Session active</span>':'';
+
+  // KPIs
+  const avg=g.overallAvg;
+  const ac=scoreClass(avg);
+  document.getElementById('kpi-grid').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label" data-i18n="overallScore">${tr('overallScore')}</div>
+      <div class="kpi-value ${ac}">${avg>0?avg.toFixed(2):'—'}<span style="font-size:14px;font-weight:400;color:var(--text3);">/5</span></div>
+      <div class="kpi-sub">${tr('weightedAvg')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">${tr('areasFailed')}</div>
+      <div class="kpi-value r">${g.failed}</div>
+      <div class="kpi-sub">${tr('scoreBelowThree')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">${tr('criticalIssues')}</div>
+      <div class="kpi-value a">${g.totalCritical}</div>
+      <div class="kpi-sub">${tr('itemsBelowThree')}</div></div>
+    <div class="kpi-card"><div class="kpi-label">${tr('redFlags')}</div>
+      <div class="kpi-value r">${g.totalFlags}</div>
+      <div class="kpi-sub">${tr('criticalHigh')}</div></div>
+  `;
+
+  // Area cards
+  let ah='';
+  g.keys.forEach((k,i)=>{
+    const r=g.scores[i];const a=AREAS[k];
+    const sc=r.avg>0?r.avg.toFixed(2):'—';
+    const pct=(r.avg/5*100).toFixed(1);
+    const cc=scoreClass(r.avg);
+    const barColor=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
+    const canClick=canAccess(k);
+    ah+=`<div class="area-card" onclick="${canClick?`nav('area_${k}',null)`:''}" style="${canClick?'':'cursor:default;opacity:.5'}">
+      <div class="area-card-top">
+        <div><div class="area-name">${trArea(k)}</div><div class="area-sub">${trResp(a.responsible)} · ${a.items.length} ${tr('items')}</div></div>
+        <div style="font-size:18px;">${a.icon}</div>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+      <div class="area-foot">
+        <div class="area-score ${cc}">${sc}</div>
+        ${statusTag(r.status)}
+        <span class="area-issues">${r.completedCount}/${r.totalCount}</span>
+      </div>
+    </div>`;
+  });
+  document.getElementById('areas-grid').innerHTML=ah;
+
+  // Charts
+  const labels=g.keys.map(k=>trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ',''));
+  const scores=g.scores.map(r=>parseFloat(r.avg.toFixed(2)));
+  const barColors=scores.map(s=>s>=4?'rgba(22,163,74,.15)':s>=3?'rgba(217,119,6,.15)':s>0?'rgba(220,38,38,.15)':'rgba(0,0,0,.04)');
+  const borderColors=scores.map(s=>s>=4?'#16a34a':s>=3?'#d97706':s>0?'#dc2626':'#a8a8a0');
+
+  if(barChart) barChart.destroy();
+  barChart=new Chart(document.getElementById('chart-bar'),{
+    type:'bar',
+    data:{labels,datasets:[{data:scores,backgroundColor:barColors,borderColor:borderColors,borderWidth:1,borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw>0?c.raw.toFixed(2):'Not scored'}/5`}}},
+      scales:{x:{min:0,max:5,ticks:{color:textColor,font:{size:10}},grid:{color:gridColor},border:{color:gridColor}},
+              y:{ticks:{color:textColor,font:{size:10}},grid:{display:false},border:{color:gridColor}}}}
+  });
+
+  if(radarChart) radarChart.destroy();
+  radarChart=new Chart(document.getElementById('chart-radar'),{
+    type:'radar',
+    data:{labels,datasets:[{data:scores,borderColor:pointColor,backgroundColor:isDark?'rgba(240,240,236,.05)':'rgba(26,26,24,.05)',pointBackgroundColor:pointColor,pointRadius:2,borderWidth:1.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{r:{min:0,max:5,ticks:{stepSize:1,color:textColor,font:{size:9},backdropColor:'transparent'},
+                 grid:{color:gridColor},pointLabels:{color:textColor,font:{size:9}},angleLines:{color:gridColor}}}}
+  });
+
+  // Load historical trend
+  loadTrendChart();
+}
+
+async function loadTrendChart(){
+  const sessions=await loadSessionsFromCloud();
+  const trendSection=document.getElementById('trend-section');
+  if(!sessions||sessions.length<2){if(trendSection) trendSection.style.display='none';return;}
+  if(trendSection) trendSection.style.display='block';
+
+  // For each session get scores per area
+  const areaKeys=Object.keys(AREAS);
+  const sessionLabels=sessions.slice(0,8).reverse().map(s=>s.session_date||new Date(s.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}));
+  const sessionIds=sessions.slice(0,8).reverse().map(s=>s.id);
+
+  // Fetch all scores for these sessions
+  const{data:allScores}=await sb.from('audit_scores').select('*').in('session_id',sessionIds);
+  if(!allScores) return;
+
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark';
+  const gridColor=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+  const textColor=isDark?'#5a5a54':'#a8a8a0';
+
+  // Build datasets - one line per area
+  const areaColors=['#16a34a','#d97706','#2563eb','#dc2626','#8b5cf6','#ec4899','#0891b2','#65a30d'];
+  const datasets=areaKeys.map((k,i)=>{
+    const data=sessionIds.map(sid=>{
+      const items=allScores.filter(s=>s.session_id===sid&&s.area_key===k);
+      if(!items.length) return null;
+      const avg=items.reduce((s,it)=>s+it.score,0)/items.length;
+      return parseFloat(avg.toFixed(2));
+    });
+    return{
+      label:trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ',''),
+      data,borderColor:areaColors[i%areaColors.length],
+      backgroundColor:'transparent',pointRadius:3,borderWidth:1.5,
+      spanGaps:true,tension:.3,
+      pointBackgroundColor:areaColors[i%areaColors.length]
+    };
+  });
+
+  // Legend
+  const legend=document.getElementById('trend-legend');
+  if(legend) legend.innerHTML=datasets.map(d=>`
+    <div class="trend-legend-item">
+      <div class="trend-dot" style="background:${d.borderColor};"></div>
+      ${d.label}
+    </div>`).join('');
+
+  if(trendChart) trendChart.destroy();
+  trendChart=new Chart(document.getElementById('chart-trend'),{
+    type:'line',
+    data:{labels:sessionLabels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:textColor,font:{size:10}},grid:{color:gridColor},border:{color:gridColor}},
+        y:{min:0,max:5,ticks:{stepSize:1,color:textColor,font:{size:10}},grid:{color:gridColor},border:{color:gridColor}}
+      },
+      interaction:{intersect:false,mode:'index'}
+    }
+  });
+}
+
+// =========================================================
+// START AUDIT
+// =========================================================
+function buildStartPage(){
+  const rd=ROLE_DEFS[currentRole]||ROLE_DEFS.investor;
+  const avail=rd.areas||Object.keys(AREAS);
+  document.getElementById('active-warn').style.display=auditActive?'block':'none';
+  document.getElementById('audit-mode-grid').innerHTML=avail.map(k=>{
+    const a=AREAS[k];
+    const sel=!selectedAreas||selectedAreas.includes(k);
+    return`<div class="area-mode-card ${sel?'selected':''}" id="amc-${k}" onclick="toggleAreaSel('${k}')">
+      <div class="area-mode-icon">${a.icon}</div>
+      <div class="area-mode-title">${trArea(k)}</div>
+      <div class="area-sub" style="font-size:10px;margin-top:2px;">${a.items.length} items</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleAreaSel(k){document.getElementById('amc-'+k)?.classList.toggle('selected');}
+
+function confirmStartAudit(){
+  const rd=ROLE_DEFS[currentRole]||ROLE_DEFS.investor;
+  const avail=rd.areas||Object.keys(AREAS);
+  const chosen=avail.filter(k=>document.getElementById('amc-'+k)?.classList.contains('selected'));
+  if(!chosen.length){showToast(tr('selectAtLeastOne'));return;}
+  showModal(
+    auditActive?tr('resetStart'):tr('startNew'),
+    auditActive?tr('resetDesc'):tr('startDesc2'),
+    ()=>doStartAudit(chosen),
+    auditActive?tr('resetBtn'):tr('startBtn2'),
+    auditActive
+  );
+}
+
+function doStartAudit(areaKeys){
+  selectedAreas=areaKeys;
+  areaKeys.forEach(k=>AREAS[k].items.forEach(item=>{item.score=0;item.notes='';}));
+  auditActive=true;
+  buildAreaPages();
+  buildDashboard();
+  buildSidebar();
+  buildFlags();
+  showToast(tr('startAudit'));
+  nav('dashboard',document.getElementById('sbitem-dashboard'));
+}
+
+// =========================================================
+// AREA PAGES
+// =========================================================
+function canAccess(key){
+  const rd=ROLE_DEFS[currentRole];
+  if(!rd) return false;
+  return rd.areas===null||rd.areas.includes(key);
+}
+
+function buildAreaPages(){
+  const container=document.getElementById('area-pages');
+  container.innerHTML=Object.keys(AREAS).map(k=>`<div class="page" id="page-area_${k}"><div id="area-content-${k}"></div></div>`).join('');
+  Object.keys(AREAS).forEach(k=>renderArea(k));
+}
+
+function renderArea(key){
+  const a=AREAS[key];const r=calcArea(key);
+  const canEdit=ROLE_DEFS[currentRole]?.canEdit&&canAccess(key);
+  const sc=r.avg>0?r.avg.toFixed(2):'—';
+  const barColor=r.avg>=4?'var(--green)':r.avg>=3?'var(--amber)':r.avg>0?'var(--red)':'var(--text3)';
+  const pct=(r.avg/5*100).toFixed(1);
+
+  let html=`<div class="audit-hdr">
+    <div class="audit-hdr-left"><h1>${a.icon} ${trArea(key)}</h1><p>${trResp(a.responsible)} · ${a.items.length} ${tr('auditItem')}</p></div>
+    <div class="audit-stats">
+      <div class="audit-stat"><div class="audit-stat-val" style="color:${barColor};">${sc}</div><div class="audit-stat-lbl">${tr('score')}</div></div>
+      <div class="audit-stat"><div class="audit-stat-val" style="color:var(--text2);">${r.completedCount}/${r.totalCount}</div><div class="audit-stat-lbl">${tr('completed')}</div></div>
+      <div class="audit-stat"><div class="audit-stat-val" style="color:${r.complianceRate>=80?'var(--green)':'var(--amber)'};">${r.completedCount>0?r.complianceRate+'%':'—'}</div><div class="audit-stat-lbl">${tr('compliance')}</div></div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    ${statusTag(r.status)}
+    <div class="bar-track" style="flex:1;min-width:100px;height:4px;"><div class="bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+    ${canEdit?`<button class="btn btn-primary" onclick="saveArea('${key}')">Save</button>`:''}
+    ${(canEdit||currentRole==='admin')?`<button class="btn btn-ghost" onclick="sendAreaTelegram('${key}')">Send</button>`:''}
+  </div>
+  <div class="table-wrap">
+    <div class="table-toolbar">
+      <button class="filter-btn active" onclick="filterArea('${key}','all',this)">All (${a.items.length})</button>
+      <button class="filter-btn" onclick="filterArea('${key}','critical',this)">${tr('critical')}</button>
+      <button class="filter-btn" onclick="filterArea('${key}','issues',this)">${tr('issuesOnly')}</button>
+      <button class="filter-btn" onclick="filterArea('${key}','ok',this)">${tr('ok')}</button>
+      <button class="filter-btn" onclick="filterArea('${key}','todo',this)">${tr('notScored')}</button>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>ID</th><th>${tr('auditItem')}</th>
+        <th class="hide-m">${tr('level')}</th>
+        <th class="hide-m">${tr('weight')}</th>
+        <th>${tr('score')}</th>
+        <th>${tr('progress')}</th>
+        <th class="hide-m">${tr('notes')}</th>
+      </tr></thead>
+      <tbody id="tbody-${key}">`;
+
+  a.items.forEach((item,idx)=>{
+    const pctI=(item.score/5*100).toFixed(0);
+    const bc=scoreColor(item.score);
+    html+=`<tr data-level="${item.level}" data-score="${item.score}" data-idx="${idx}">
+      <td><span class="id-mono">${item.id}</span></td>
+      <td style="font-size:12px;">${trItem(item.id,item.item)}</td>
+      <td class="hide-m">${levelTag(item.level)}</td>
+      <td class="hide-m" style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;">${(item.weight*100).toFixed(0)}%</td>
+      <td>
+        <div class="score-stepper">
+          <button onclick="changeScore('${key}',${idx},-1)" ${!canEdit?'disabled':''}>−</button>
+          <span class="score-num" id="sv-${key}-${idx}" style="color:${bc};">${item.score===0?'—':item.score}</span>
+          <button onclick="changeScore('${key}',${idx},+1)" ${!canEdit?'disabled':''}>+</button>
+        </div>
+      </td>
+      <td>
+        <div class="inline-bar">
+          <div class="inline-bar-track"><div class="inline-bar-fill" id="bar-${key}-${idx}" style="width:${pctI}%;background:${bc};"></div></div>
+          <span style="font-size:10px;color:var(--text3);min-width:24px;font-family:'JetBrains Mono',monospace;">${item.score>0?pctI+'%':'—'}</span>
+        </div>
+      </td>
+      <td class="hide-m"><input class="note-input" placeholder="Note..." value="${item.notes}" ${!canEdit?'disabled':''} oninput="AREAS['${key}'].items[${idx}].notes=this.value"></td>
+    </tr>`;
+  });
+  html+=`</tbody></table></div></div>`;
+  document.getElementById('area-content-'+key).innerHTML=html;
+}
+
+function changeScore(key,idx,delta){
+  const item=AREAS[key].items[idx];
+  let s=item.score+delta;
+  if(s<0) s=0;if(s>5) s=5;
+  item.score=s;
+  const sv=document.getElementById('sv-'+key+'-'+idx);
+  sv.textContent=s===0?'—':s; sv.style.color=scoreColor(s);
+  const pct=(s/5*100).toFixed(0);
+  const bf=document.getElementById('bar-'+key+'-'+idx);
+  bf.style.width=pct+'%'; bf.style.background=scoreColor(s);
+  const tr2=sv.closest('tr'); if(tr2) tr2.setAttribute('data-score',s);
+  // Update progress bar if active
+  if(auditActive){const ps=document.getElementById('progress-bar-section');if(ps) buildProgressBar();}
+}
+
+function filterArea(key,filter,btn){
+  document.querySelectorAll(`#area-content-${key} .filter-btn`).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll(`#tbody-${key} tr`).forEach(tr=>{
+    const lvl=tr.getAttribute('data-level');
+    const sc=parseInt(tr.getAttribute('data-score')||'0');
+    let show=true;
+    if(filter==='critical') show=lvl==='Critical';
+    else if(filter==='issues') show=sc>0&&sc<3;
+    else if(filter==='ok') show=sc>=4;
+    else if(filter==='todo') show=sc===0;
+    tr.style.display=show?'':'none';
+  });
+}
+
+function saveArea(key){
+  renderArea(key);
+  buildDashboard();
+  buildFlags();
+  updateSBScores();
+  showToast(tr('areaSaved'));
+}
+
+// =========================================================
+// PROGRESS BAR
+// =========================================================
+function buildProgressBar(){
+  const g=calcGlobal();
+  const pct=g.progressPct;
+  const areaKeys=selectedAreas||Object.keys(AREAS);
+  const msgs=[tr('notStarted'),tr('justStarting'),tr('almostHalf'),tr('overHalf'),tr('almostDone'),tr('complete')];
+  const msgIdx=pct===0?0:pct<25?1:pct<50?2:pct<75?3:pct<100?4:5;
+  let areaHtml=areaKeys.map(k=>{
+    const a=AREAS[k];const r=calcArea(k);
+    const ap=r.totalCount>0?Math.round(r.completedCount/r.totalCount*100):0;
+    const bc=ap===100?'var(--green)':ap>50?'var(--amber)':'var(--text3)';
+    return`<div class="area-prog-item">
+      <span style="font-size:14px;">${a.icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div class="area-prog-name">${trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','')}</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:3px;">
+          <div class="area-prog-track"><div class="area-prog-fill" style="width:${ap}%;background:${bc};"></div></div>
+        </div>
+      </div>
+      <span class="area-prog-count" style="color:${bc};">${r.completedCount}/${r.totalCount}</span>
+    </div>`;
+  }).join('');
+
+  const existing=document.getElementById('progress-bar-section');
+  if(existing) existing.remove();
+  const html=`<div class="progress-section" id="progress-bar-section">
+    <div class="progress-hdr">
+      <h3 data-i18n="auditProgress">${tr('auditProgress')}</h3>
+      <div class="progress-pct">${pct}%</div>
+    </div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%;"></div></div>
+    <div class="progress-msg">${msgs[msgIdx]}</div>
+    <div class="area-prog-grid">${areaHtml}</div>
+    ${pct===100?`<div style="margin-top:14px;text-align:center;"><button class="btn btn-primary" onclick="saveCurrentSession()">${tr('saveSession')}</button></div>`:''}
+  </div>`;
+  document.getElementById('kpi-grid').insertAdjacentHTML('beforebegin',html);
+}
+
+// =========================================================
+// FLAGS
+// =========================================================
+function buildFlags(){
+  let flags=[];
+  Object.keys(AREAS).forEach(k=>{
+    AREAS[k].items.forEach(item=>{
+      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08))
+        flags.push({area:AREAS[k].name,key:k,item:item.item,id:item.id,score:item.score,weight:item.weight,level:item.level});
+    });
+  });
+  flags.sort((a,b)=>a.score-b.score);
+  const cnt=document.getElementById('sb-flag-count');
+  if(cnt){cnt.textContent=flags.length;cnt.style.display=flags.length?'':'none';}
+  if(!flags.length){
+    document.getElementById('flags-list').innerHTML='<div class="empty"><div class="empty-icon">✓</div><p>No critical red flags.</p></div>';
+    return;
+  }
+  document.getElementById('flags-list').innerHTML=flags.map(f=>`
+    <div class="flag-item">
+      <span class="flag-area-tag">${trArea(f.key)}</span>
+      <div><div class="flag-text">${trItem(f.id,f.item)}</div><div class="flag-id-text">${f.id} · ${(f.weight*100).toFixed(0)}%</div></div>
+      <div class="flag-score-big">${f.score}/5</div>
+    </div>`).join('');
+}
+
 // =========================================================
 // HISTORY
 // =========================================================
 async function loadHistory(){
   const el=document.getElementById('history-content');
-  el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading from cloud...</p></div>';
+  el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
   const sessions=await loadSessionsFromCloud();
   if(!sessions.length){
     el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No saved sessions yet.</p></div>';
     return;
   }
-  let html='<div class="history-list">';
-  sessions.forEach(s=>{
+  el.innerHTML='<div class="history-list">'+sessions.map(s=>{
     const sc=parseFloat(s.overall_score).toFixed(2);
-    const c=sc>=4?'var(--green)':sc>=3?'var(--amber)':'var(--red)';
-    const dateStr=s.session_date||new Date(s.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-    html+=`<div class="history-item">
-      <div class="history-date">${dateStr}</div>
+    const c=scoreColor(parseFloat(sc));
+    const d=s.session_date||new Date(s.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    return`<div class="history-item">
+      <div class="history-date">${d}</div>
       <div class="history-score" style="color:${c};">${sc}</div>
       <div style="flex:1;">
-        <div class="bar-track"><div class="bar-fill" style="width:${(sc/5*100)}%;background:${c};"></div></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Auditor: ${s.auditor||'—'} · ${s.failed_areas} failed · ${s.total_flags} flags</div>
-        ${s.notes?`<div style="font-size:11px;color:var(--text2);margin-top:2px;">📝 ${s.notes}</div>`:''}
+        <div class="bar-track" style="height:2px;"><div class="bar-fill" style="width:${(sc/5*100)}%;background:${c};"></div></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">${s.auditor||'—'} · ${s.failed_areas} failed · ${s.total_flags} flags${s.notes?' · '+s.notes:''}</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-        ${s.failed_areas>0?'<span class="badge badge-failed">'+s.failed_areas+' failed</span>':'<span class="badge badge-passed">All OK</span>'}
-        <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="viewSession('${s.id}')">View</button>
-        ${currentRole==='admin'?`<button class="btn btn-danger" style="padding:4px 10px;font-size:11px;" onclick="deleteSession('${s.id}')">Delete</button>`:''}
+      <div style="display:flex;gap:6px;">
+        ${statusTag(sc>=4?'PASSED':sc>=3?'BORDERLINE':'FAILED')}
+        <button class="btn" style="padding:3px 8px;font-size:10px;" onclick="viewSession('${s.id}')">View</button>
+        ${currentRole==='admin'?`<button class="btn btn-danger" style="padding:3px 8px;font-size:10px;" onclick="deleteSession('${s.id}')">Del</button>`:''}
       </div>
     </div>`;
-  });
-  html+='</div>';
-  el.innerHTML=html;
+  }).join('')+'</div>';
 }
 
-async function viewSession(sessionId){
-  const scores=await loadSessionScores(sessionId);
-  if(!scores.length){showToast('⚠️',tr('noData'));return;}
+async function viewSession(sid){
+  const scores=await loadSessionScores(sid);
+  if(!scores.length){showToast('No data');return;}
   const areaMap={};
   scores.forEach(r=>{if(!areaMap[r.area_key])areaMap[r.area_key]=[];areaMap[r.area_key].push(r);});
-  let html='<button class="btn btn-ghost" style="margin-bottom:16px;" onclick="loadHistory()">← Back</button><div style="display:flex;flex-direction:column;gap:14px;">';
-  Object.keys(areaMap).forEach(key=>{
-    const aName=AREAS[key]?.name||key;
-    const items=areaMap[key];
+  let html='<button class="btn btn-ghost" style="margin-bottom:14px;" onclick="loadHistory()">← Back</button>';
+  html+='<div style="display:flex;flex-direction:column;gap:10px;">';
+  Object.keys(areaMap).forEach(k=>{
+    const items=areaMap[k];
     const avg=(items.reduce((s,i)=>s+i.score,0)/items.length).toFixed(2);
-    const issues=items.filter(i=>i.score<3).length;
-    const c=avg>=4?'var(--green)':avg>=3?'var(--amber)':'var(--red)';
-    html+=`<div class="table-wrap"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;">
-      <span style="font-size:14px;font-weight:500;">${AREAS[key]?.icon||''} ${aName}</span>
-      <span style="font-size:18px;font-weight:600;color:${c};margin-left:auto;">${avg}</span>
-      <span class="issues-count">${issues} issues</span>
-    </div><table>
-      <thead><tr><th>ID</th><th>Item</th><th>Level</th><th>Score</th><th class="hide-mobile">Notes</th></tr></thead><tbody>`;
-    items.forEach(item=>{
-      const ic=item.score>=4?'var(--green)':item.score>=3?'var(--amber)':'var(--red)';
-      html+=`<tr><td><span class="id-tag">${item.item_id}</span></td><td>${item.item_name}</td>
-        <td>${levelPill(item.level)}</td>
-        <td><span style="font-weight:600;color:${ic};">${item.score}/5</span></td>
-        <td style="font-size:12px;color:var(--text2);">${item.notes||'—'}</td></tr>`;
-    });
-    html+=`</tbody></table></div>`;
+    const bc=scoreColor(parseFloat(avg));
+    html+=`<div class="table-wrap">
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+        <span style="font-size:13px;font-weight:600;">${AREAS[k]?.icon||''} ${trArea(k)}</span>
+        <span style="font-size:18px;font-weight:600;color:${bc};margin-left:auto;">${avg}</span>
+      </div>
+      <table><thead><tr><th>ID</th><th>Item</th><th>Level</th><th>Score</th><th>Notes</th></tr></thead><tbody>
+      ${items.map(it=>`<tr>
+        <td><span class="id-mono">${it.item_id}</span></td>
+        <td>${trItem(it.item_id,it.item_name)}</td>
+        <td>${levelTag(it.level)}</td>
+        <td style="font-weight:600;color:${scoreColor(it.score)};">${it.score}/5</td>
+        <td style="font-size:11px;color:var(--text2);">${it.notes||'—'}</td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
   });
   html+='</div>';
   document.getElementById('history-content').innerHTML=html;
@@ -1869,14 +2036,13 @@ async function viewSession(sessionId){
 
 async function saveCurrentSession(){
   const g=calcGlobal();
-  const auditor=document.getElementById('auditor-name')?.value||localStorage.getItem('auditor_name')||'—';
+  const auditor=localStorage.getItem('auditor_name')||currentUser?.email||'—';
   const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const id=await saveSessionToCloud({date,auditor,overallAvg:g.overallAvg.toFixed(2),failed:g.failed,totalFlags:g.totalFlags,notes:document.getElementById('session-note')?.value||''});
   if(id){
-    showToast('☁️',tr('sessionSaved'));
+    showToast(tr('sessionSaved'));
     auditActive=false;
     buildDashboard();
-    if(ROLE_DEFS[currentRole]?.canHistory) loadHistory();
     sendTelegramReport();
   }
 }
@@ -1885,35 +2051,32 @@ async function saveCurrentSession(){
 // SIDEBAR
 // =========================================================
 function buildSidebar(){
-  let html='';
-  const rd=ROLE_DEFS[currentRole];
-  const visibleAreas=rd?.areas||Object.keys(AREAS);
-  visibleAreas.forEach(key=>{
-    const a=AREAS[key];
-    const r=calcArea(key);
+  const rd=ROLE_DEFS[currentRole]||ROLE_DEFS.investor;
+  const visible=rd.areas||Object.keys(AREAS);
+  document.getElementById('sb-areas').innerHTML=visible.map(k=>{
+    const a=AREAS[k];const r=calcArea(k);
     const sc=r.avg>0?r.avg.toFixed(1):'—';
-    const cls=r.avg>=4?'green':r.avg>=3?'amber':r.avg>0?'red':'';
-    html+=`<div class="sb-item" id="sbitem-area_${key}" onclick="nav('area_${key}',this)">
-      <span style="font-size:14px;">${a.icon}</span>
-      ${trArea(key).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','').replace(' & Common Areas','').replace(' e Aree Comuni','').replace(' & Area Umum','')}
-      <span class="sb-score ${cls}" id="sb-score-${key}">${sc}</span>
+    const cls=r.avg>=4?'g':r.avg>=3?'a':r.avg>0?'r':'';
+    return`<div class="sb-item" id="sbitem-area_${k}" onclick="nav('area_${k}',this)">
+      <span style="font-size:13px;">${a.icon}</span>
+      <span style="flex:1;font-size:11px;">${trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','').replace(' & Common Areas','').replace(' e Aree Comuni','').replace(' & Area Umum','')}</span>
+      <span class="sb-score ${cls}" id="sb-score-${k}">${sc}</span>
     </div>`;
-  });
-  document.getElementById('sb-areas').innerHTML=html;
+  }).join('');
 }
 
 function updateSBScores(){
-  Object.keys(AREAS).forEach(key=>{
-    const r=calcArea(key);
-    const el=document.getElementById('sb-score-'+key);
+  Object.keys(AREAS).forEach(k=>{
+    const r=calcArea(k);
+    const el=document.getElementById('sb-score-'+k);
     if(!el) return;
     el.textContent=r.avg>0?r.avg.toFixed(1):'—';
-    el.className='sb-score '+(r.avg>=4?'green':r.avg>=3?'amber':r.avg>0?'red':'');
+    el.className='sb-score '+(r.avg>=4?'g':r.avg>=3?'a':r.avg>0?'r':'');
   });
 }
 
 // =========================================================
-// NAVIGATION
+// NAV
 // =========================================================
 function nav(page,el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1923,74 +2086,25 @@ function nav(page,el){
   if(el) el.classList.add('active');
   else{const sbi=document.getElementById('sbitem-'+page);if(sbi) sbi.classList.add('active');}
   const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings')};
-  document.getElementById('topbar-title').textContent=titles[page]||(AREAS[page.replace('area_','')]?.name||page);
+  document.getElementById('topbar-title').textContent=titles[page]||(AREAS[page.replace('area_','')]?trArea(page.replace('area_','')):page);
   if(page==='dashboard') buildDashboard();
   if(page==='flags') buildFlags();
   if(page==='history') loadHistory();
   if(page==='start') buildStartPage();
-  if(page==='settings') buildPinManagement();
   document.getElementById('sidebar').classList.remove('open');
+  closeSidebar();
+  setTimeout(applyI18n,50);
 }
 
-// =========================================================
-// PIN MANAGEMENT (admin only)
-// =========================================================
-function buildPinManagement(){
-  if(currentRole!=='admin'){document.getElementById('pin-settings-card').style.display='none';return;}
-  const roles=['admin','manager','area_housekeeping','area_restaurant','area_spa','area_security','area_laundry','area_lobby','investor'];
-  let html='';
-  roles.forEach(r=>{
-    const rd=ROLE_DEFS[r];
-    html+=`<div class="pin-card">
-      <div class="pin-card-role" style="color:${rd.color};">${rd.label}</div>
-      <div class="pin-card-current">Current PIN: ${'●'.repeat(PINS[r].length)}</div>
-      <input class="pin-change-input" type="password" maxlength="4" placeholder="New PIN" id="pin-input-${r}" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-      <button class="btn btn-ghost" style="width:100%;font-size:12px;" onclick="updatePin('${r}')">Update PIN</button>
-    </div>`;
-  });
-  document.getElementById('pin-manage-grid').innerHTML=html;
-}
-
-function updatePin(role){
-  const input=document.getElementById('pin-input-'+role);
-  const val=input.value.trim();
-  if(val.length!==4||!/^\d{4}$/.test(val)){showToast('⚠️',tr('pinError'));return;}
-  PINS[role]=val;
-  savePins();
-  input.value='';
-  showToast('✓',tr('pinUpdated')+' '+ROLE_DEFS[role].label);
-  buildPinManagement();
+function mobileNav(page){
+  document.querySelectorAll('.mobile-nav-item').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('mnav-'+page);if(btn) btn.classList.add('active');
+  nav(page,document.getElementById('sbitem-'+page));
 }
 
 // =========================================================
 // TELEGRAM
 // =========================================================
-function getTGConfig(){
-  return{
-    token:document.getElementById('tg-token')?.value||localStorage.getItem('tg_token')||TG_TOKEN_DEFAULT,
-    chatid:document.getElementById('tg-chatid')?.value||localStorage.getItem('tg_chatid')||TG_CHAT_DEFAULT
-  };
-}
-function saveTGSettings(){
-  localStorage.setItem('tg_token',document.getElementById('tg-token')?.value||'');
-  localStorage.setItem('tg_chatid',document.getElementById('tg-chatid')?.value||'');
-  localStorage.setItem('auditor_name',document.getElementById('auditor-name')?.value||'');
-}
-function toggleTGAuto(){
-  const btn=document.getElementById('tg-auto');
-  const cur=localStorage.getItem('tg_auto')==='1';
-  localStorage.setItem('tg_auto',cur?'0':'1');
-  btn.classList.toggle('on',!cur);
-}
-async function testTelegram(){
-  const cfg=getTGConfig();
-  if(!cfg.token||!cfg.chatid){showToast('⚠️','Enter Bot Token and Chat ID');return;}
-  try{
-    const r=await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:cfg.chatid,text:'✅ NUMA Bali Audit — connection test successful!',parse_mode:'HTML'})});
-    const d=await r.json();
-    d.ok?showToast('✓','Telegram connected!'):showToast('✕','Error: '+d.description);
-  }catch(e){showToast('✕',tr('tgError'));}
-}
 async function sendTelegramReport(){
   const WORKER = 'https://numa-audit.giorgio-troia2021.workers.dev';
   const g = calcGlobal();
@@ -2048,406 +2162,226 @@ async function sendTelegramReport(){
 }
 
 
+
+
 async function sendAreaTelegram(key,auto=false){
-  const cfg=getTGConfig();
-  if(!cfg.token||!cfg.chatid) return;
-  const a=AREAS[key];
-  const r=calcArea(key);
-  const se=r.status==='PASSED'?'🟢':r.status==='BORDERLINE'?'🟡':r.status==='PENDING'?'⚪':'🔴';
-  const bar=s=>{const f=Math.round((s/5)*8);return'█'.repeat(f)+'░'.repeat(8-f);};
-  let msg=`${se} <b>${trArea(key)}</b>\n`;
-  msg+=`<code>${bar(r.avg)}</code> <b>${r.avg>0?r.avg.toFixed(2):'—'}/5</b> · ${r.completedCount}/${r.totalCount} checked\n`;
-  msg+=`━━━━━━━━━━━━━━━━\n`;
+  const a=AREAS[key];const r=calcArea(key);
+  const se=r.status==='PASSED'?'✅':r.status==='BORDERLINE'?'⚠️':r.status==='PENDING'?'⏳':'❌';
+  let msg=`${se} <b>${trArea(key)}</b>\nScore: <b>${r.avg>0?r.avg.toFixed(2):'—'}/5</b> · ${r.completedCount}/${r.totalCount} done\n━━━━━━━\n`;
   const issues=a.items.filter(i=>i.score>0&&i.score<3);
-  if(issues.length){
-    msg+=`⚠️ <b>${issues.length} issue${issues.length>1?'s':''}:</b>\n`;
-    issues.forEach(i=>{
-      const scoreEmoji=i.score===1?'🔴':'🟠';
-      msg+=`${scoreEmoji} ${trItem(i.id,i.item)}: <b>${i.score}/5</b>${i.notes?' — <i>'+i.notes+'</i>':''}\n`;
-    });
-  } else {
-    msg+=`✅ No issues found in this area.\n`;
-  }
+  issues.length?issues.forEach(i=>{msg+=`⚠️ ${trItem(i.id,i.item)}: ${i.score}/5${i.notes?' — '+i.notes:''}\n`;}):(msg+='✅ No issues.\n');
   try{
-    await fetch(`https://api.telegram.org/bot${cfg.token}/sendMessage`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:cfg.chatid,text:msg,parse_mode:'HTML'})
-    });
+    const payload={auditData:{areas:[{name:trArea(key),icon:a.icon,responsible:a.responsible,avg:r.avg,status:r.status,issues:r.criticalIssues,complianceRate:r.complianceRate,completedCount:r.completedCount,totalCount:r.totalCount,items:a.items.filter(i=>i.score>0).map(i=>({id:i.id,name:trItem(i.id,i.item),score:i.score,level:i.level,weight:i.weight,notes:i.notes||''}))}],flags:[],overallAvg:r.avg.toFixed(2),progressPct:100,failed:r.status==='FAILED'?1:0,totalCritical:r.criticalIssues,totalFlags:r.redFlags,date:new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}),auditor:localStorage.getItem('auditor_name')||'—'}};
+    await fetch(WORKER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!auto) showToast(tr('tgArea'));
   }catch(e){}
-  if(!auto) showToast('✈️',tr('tgArea'));
 }
 
 // =========================================================
-// EXPORT PDF
+// EXPORT PDF (browser print)
 // =========================================================
 function exportPDF(){
   const g=calcGlobal();
-  const auditor=localStorage.getItem('auditor_name')||ROLE_DEFS[currentRole]?.label||'—';
-  const resort=localStorage.getItem('resort_name')||'NUMA Bali';
+  const auditor=localStorage.getItem('auditor_name')||currentUser?.email||'—';
   const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const dateShort=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
-  const overallStatus=g.overallAvg>=4?'PASSED':g.overallAvg>=3?'BORDERLINE':'FAILED';
-  const statusColor=g.overallAvg>=4?'#16a34a':g.overallAvg>=3?'#d97706':'#dc2626';
-  const statusBg=g.overallAvg>=4?'#f0fdf4':g.overallAvg>=3?'#fffbeb':'#fef2f2';
-
-  function pctBar(avg,color){
-    const pct=(avg/5*100).toFixed(1);
-    return `<div style="background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;margin-top:4px;">
-      <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;"></div>
-    </div>`;
-  }
-  function scoreColor(s){ return s>=4?'#16a34a':s>=3?'#d97706':s>0?'#dc2626':'#94a3b8'; }
-  function statusPill(st){
-    const c=st==='PASSED'?{bg:'#f0fdf4',col:'#16a34a'}:st==='BORDERLINE'?{bg:'#fffbeb',col:'#d97706'}:st==='PENDING'?{bg:'#f8fafc',col:'#94a3b8'}:{bg:'#fef2f2',col:'#dc2626'};
-    return `<span style="background:${c.bg};color:${c.col};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.05em;">${st}</span>`;
-  }
-
-  // Collect all red flags grouped by area
-  const flagsByArea={};
-  let totalFlags=0;
-  g.keys.forEach(k=>{
-    AREAS[k].items.forEach(item=>{
-      if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08)){
-        if(!flagsByArea[k]) flagsByArea[k]=[];
-        flagsByArea[k].push(item);
-        totalFlags++;
-      }
-    });
-  });
-
-  let html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-  <title>${resort} — Audit Report ${dateShort}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    *{box-sizing:border-box;margin:0;padding:0;}
-    body{font-family:'Inter',Arial,sans-serif;color:#1e293b;background:#fff;font-size:13px;line-height:1.6;}
-    .page-break{page-break-after:always;}
-    /* COVER */
-    .cover{min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(135deg,#0d1117 0%,#1a2332 60%,#0f2027 100%);color:#fff;padding:60px;}
-    .cover-logo{width:56px;height:56px;background:#22c987;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;color:#0d1117;margin-bottom:40px;}
-    .cover h1{font-size:42px;font-weight:700;line-height:1.1;margin-bottom:8px;}
-    .cover h2{font-size:20px;font-weight:300;color:#94a3b8;margin-bottom:60px;}
-    .cover-meta{display:flex;gap:40px;margin-bottom:auto;}
-    .cover-meta-item label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:4px;}
-    .cover-meta-item span{font-size:15px;font-weight:500;}
-    .cover-score-block{margin-top:60px;padding:32px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:16px;display:inline-block;}
-    .cover-score{font-size:72px;font-weight:700;color:#22c987;line-height:1;}
-    .cover-score-label{font-size:14px;color:#94a3b8;margin-top:6px;}
-    .cover-status{display:inline-block;padding:8px 20px;border-radius:8px;font-size:14px;font-weight:700;margin-top:16px;letter-spacing:.06em;}
-    .cover-footer{margin-top:60px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center;}
-    .cover-footer span{font-size:12px;color:#64748b;}
-    /* CONTENT */
-    .content{padding:48px 56px;}
-    .section-title{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.12em;margin-bottom:20px;padding-bottom:10px;border-bottom:2px solid #f1f5f9;}
-    h3{font-size:18px;font-weight:600;margin-bottom:24px;color:#0f172a;}
-    /* KPI ROW */
-    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:40px;}
-    .kpi{padding:20px;border-radius:12px;border:1px solid #e2e8f0;}
-    .kpi-val{font-size:32px;font-weight:700;line-height:1;margin-bottom:4px;}
-    .kpi-lbl{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.08em;}
-    /* AREA TABLE */
-    .area-table{width:100%;border-collapse:collapse;margin-bottom:40px;}
-    .area-table th{padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;border-bottom:2px solid #f1f5f9;background:#f8fafc;}
-    .area-table td{padding:14px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
-    .area-table tr:last-child td{border-bottom:none;}
-    .area-table tr:hover td{background:#fafafa;}
-    .area-icon{font-size:18px;margin-right:8px;}
-    .area-name{font-weight:600;font-size:14px;}
-    .area-resp{font-size:11px;color:#94a3b8;margin-top:1px;}
-    /* AREA DETAIL */
-    .area-detail{margin-bottom:48px;break-inside:avoid;}
-    .area-header-detail{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:#f8fafc;border-radius:12px 12px 0 0;border:1px solid #e2e8f0;border-bottom:none;}
-    .area-header-left{display:flex;align-items:center;gap:12px;}
-    .area-icon-big{font-size:24px;}
-    .area-title{font-size:16px;font-weight:600;}
-    .area-subtitle{font-size:12px;color:#64748b;margin-top:1px;}
-    .area-score-big{font-size:28px;font-weight:700;}
-    .items-table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:0 0 12px 12px;overflow:hidden;}
-    .items-table th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
-    .items-table td{padding:10px 12px;border-bottom:1px solid #f8fafc;font-size:12px;vertical-align:middle;}
-    .items-table tr:last-child td{border-bottom:none;}
-    .items-table tr.issue td{background:#fef9f9;}
-    .score-badge{display:inline-block;width:28px;height:28px;border-radius:50%;text-align:center;line-height:28px;font-size:12px;font-weight:700;}
-    .level-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
-    .lp-critical{background:#fef2f2;color:#dc2626;}
-    .lp-moderate{background:#fffbeb;color:#d97706;}
-    .lp-low{background:#f8fafc;color:#64748b;}
-    /* RED FLAGS */
-    .flags-section{margin-bottom:40px;}
-    .flag-area-block{margin-bottom:24px;}
-    .flag-area-title{font-size:13px;font-weight:600;color:#1e293b;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
-    .flag-item-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fef9f9;border-left:3px solid #dc2626;border-radius:0 8px 8px 0;margin-bottom:6px;}
-    .flag-item-name{flex:1;font-size:12px;font-weight:500;}
-    .flag-item-note{font-size:11px;color:#64748b;font-style:italic;}
-    .flag-score{font-size:14px;font-weight:700;color:#dc2626;}
-    /* FOOTER */
-    .report-footer{margin-top:60px;padding-top:20px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;}
-    @media print{
-      .page-break{page-break-after:always;}
-      .area-detail{break-inside:avoid;}
-      body{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
-    }
-  </style>
-  </head><body>
-
-  <!-- COVER PAGE -->
-  <div class="cover page-break">
-    <div class="cover-logo">NB</div>
-    <h1>${resort}</h1>
-    <h2>Quality Audit Report</h2>
-    <div class="cover-meta">
-      <div class="cover-meta-item"><label>Date</label><span>${date}</span></div>
-      <div class="cover-meta-item"><label>Auditor</label><span>${auditor}</span></div>
-      <div class="cover-meta-item"><label>Progress</label><span>${g.progressPct}% complete</span></div>
-      <div class="cover-meta-item"><label>Areas</label><span>${g.keys.length} sections</span></div>
+  const overall=g.overallAvg;
+  const oc=overall>=4?'#16a34a':overall>=3?'#d97706':overall>0?'#dc2626':'#9ca3af';
+  let html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NUMA Bali Audit — ${date}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Arial,sans-serif;color:#111;font-size:12px;}
+  .cover{min-height:100vh;background:#0f0f0e;color:#fff;padding:60px;display:flex;flex-direction:column;page-break-after:always;}
+  .logo{width:50px;height:50px;background:#16a34a;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:#0f0f0e;margin-bottom:48px;}
+  .sec{padding:40px 60px;}.sec-title{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#999;margin-bottom:18px;padding-bottom:8px;border-bottom:1px solid #eee;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}.kpi{background:#f9f9f8;border:1px solid #eee;border-radius:8px;padding:16px;}
+  .kpi-l{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:#999;margin-bottom:6px;}.kpi-v{font-size:24px;font-weight:700;}
+  table{width:100%;border-collapse:collapse;margin-bottom:24px;}th{background:#f3f3f1;padding:8px 12px;text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;color:#999;border-bottom:1px solid #eee;}
+  td{padding:10px 12px;border-bottom:1px solid #f5f5f3;vertical-align:middle;}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:9px;font-weight:600;}
+  .flag{display:flex;align-items:center;gap:10px;padding:10px 14px;border-left:3px solid #dc2626;background:#fff5f5;margin-bottom:6px;border-radius:0 6px 6px 0;}
+  .footer{padding:16px 60px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:10px;color:#999;}
+  </style></head><body>
+  <div class="cover">
+    <div class="logo">NB</div>
+    <div style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#6b7280;margin-bottom:14px;">Operations Quality Control</div>
+    <div style="font-size:38px;font-weight:700;line-height:1.2;margin-bottom:8px;">NUMA Bali<br>Audit Report</div>
+    <div style="font-size:16px;color:#9ca3af;margin-bottom:32px;">Sideman, Bali — Indonesia</div>
+    <div style="width:50px;height:2px;background:#16a34a;margin-bottom:32px;"></div>
+    <div style="display:flex;gap:40px;margin-bottom:auto;">
+      <div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin-bottom:4px;">Date</div><div style="font-size:14px;font-weight:500;">${date}</div></div>
+      <div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin-bottom:4px;">Auditor</div><div style="font-size:14px;font-weight:500;">${auditor}</div></div>
+      <div><div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#6b7280;margin-bottom:4px;">Progress</div><div style="font-size:14px;font-weight:500;">${g.progressPct}%</div></div>
     </div>
-    <div class="cover-score-block">
-      <div class="cover-score">${g.overallAvg.toFixed(2)}</div>
-      <div class="cover-score-label">Overall Score / 5.00</div>
-      <div><span class="cover-status" style="background:${statusBg};color:${statusColor};">${overallStatus}</span></div>
-    </div>
-    <div class="cover-footer">
-      <span>NUMA Bali Resort · Sideman, Bali, Indonesia</span>
-      <span>Confidential — Internal Use Only</span>
+    <div style="margin-top:40px;padding-top:32px;border-top:1px solid #1f2937;display:flex;align-items:center;gap:16px;">
+      <div style="font-size:56px;font-weight:700;color:${oc};">${overall>0?overall.toFixed(2):'—'}</div>
+      <div style="flex:1;height:6px;background:#1f2937;border-radius:3px;overflow:hidden;margin:0 16px;">
+        <div style="width:${Math.round(overall/5*100)}%;height:100%;background:${oc};border-radius:3px;"></div>
+      </div>
+      <div style="padding:6px 16px;border-radius:6px;background:${overall>=4?'rgba(22,163,74,.15)':overall>=3?'rgba(217,119,6,.15)':'rgba(220,38,38,.15)'};color:${oc};font-size:12px;font-weight:600;">${overall>=4?'PASSED':overall>=3?'BORDERLINE':overall>0?'FAILED':'PENDING'}</div>
     </div>
   </div>
-
-  <!-- EXECUTIVE SUMMARY -->
-  <div class="content page-break">
-    <div class="section-title">Executive Summary</div>
-    <h3>Audit Overview</h3>
-    <div class="kpi-row">
-      <div class="kpi" style="border-color:${statusColor};border-top:3px solid ${statusColor};">
-        <div class="kpi-val" style="color:${statusColor};">${g.overallAvg.toFixed(2)}</div>
-        <div class="kpi-lbl">Overall Score</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid #dc2626;">
-        <div class="kpi-val" style="color:#dc2626;">${g.failed}</div>
-        <div class="kpi-lbl">Areas Failed</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid #d97706;">
-        <div class="kpi-val" style="color:#d97706;">${g.totalCritical}</div>
-        <div class="kpi-lbl">Critical Issues</div>
-      </div>
-      <div class="kpi" style="border-top:3px solid #7c3aed;">
-        <div class="kpi-val" style="color:#7c3aed;">${totalFlags}</div>
-        <div class="kpi-lbl">Red Flags</div>
-      </div>
-    </div>
-
-    <div class="section-title">Score by Area</div>
-    <table class="area-table">
-      <thead><tr>
-        <th>Area</th><th>Score</th><th>Progress</th>
-        <th>Status</th><th>Issues</th><th>Compliance</th>
-      </tr></thead>
-      <tbody>`;
+  <div class="sec"><div class="sec-title">Executive Summary</div>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-l">Overall</div><div class="kpi-v" style="color:${oc};">${overall>0?overall.toFixed(2):'—'}</div></div>
+    <div class="kpi"><div class="kpi-l">Failed</div><div class="kpi-v" style="color:#dc2626;">${g.failed}</div></div>
+    <div class="kpi"><div class="kpi-l">Issues</div><div class="kpi-v" style="color:#d97706;">${g.totalCritical}</div></div>
+    <div class="kpi"><div class="kpi-l">Flags</div><div class="kpi-v" style="color:#dc2626;">${g.totalFlags}</div></div>
+  </div>
+  <table><thead><tr><th>Area</th><th>Score</th><th>Status</th><th>Done</th><th>Issues</th></tr></thead><tbody>`;
 
   g.keys.forEach((k,i)=>{
-    const r=g.scores[i];
-    const a=AREAS[k];
-    const sc=r.avg>0?r.avg.toFixed(2):'—';
-    const col=scoreColor(r.avg);
-    const barW=r.avg>0?(r.avg/5*100).toFixed(1):0;
-    html+=`<tr>
-      <td><span class="area-icon">${a.icon}</span><span class="area-name">${trArea(k)}</span><div class="area-resp">${trResp(a.responsible)}</div></td>
-      <td><span style="font-size:20px;font-weight:700;color:${col};">${sc}</span></td>
-      <td style="min-width:120px;">
-        <div style="font-size:11px;color:#64748b;margin-bottom:3px;">${r.completedCount}/${r.totalCount} items</div>
-        ${pctBar(r.avg,col)}
-      </td>
-      <td>${statusPill(r.status)}</td>
-      <td style="color:${r.criticalIssues>0?'#dc2626':'#16a34a'};font-weight:600;">${r.criticalIssues}</td>
-      <td style="color:${parseInt(r.complianceRate)>=80?'#16a34a':'#d97706'};font-weight:600;">${r.completedCount>0?r.complianceRate+'%':'—'}</td>
-    </tr>`;
+    const r=g.scores[i];const sc=r.avg>0?r.avg.toFixed(2):'—';
+    const c=r.avg>=4?'#16a34a':r.avg>=3?'#d97706':r.avg>0?'#dc2626':'#999';
+    const sb=r.status==='PASSED'?'#f0fdf4':r.status==='BORDERLINE'?'#fffbeb':r.status==='PENDING'?'#f9fafb':'#fef2f2';
+    const sc2=r.status==='PASSED'?'#16a34a':r.status==='BORDERLINE'?'#d97706':r.status==='PENDING'?'#999':'#dc2626';
+    html+=`<tr><td><strong>${AREAS[k].icon} ${trArea(k)}</strong></td><td style="font-weight:700;color:${c};">${sc}</td><td><span class="pill" style="background:${sb};color:${sc2};">${r.status}</span></td><td>${r.completedCount}/${r.totalCount}</td><td style="color:${r.criticalIssues>0?'#dc2626':'#16a34a'};">${r.criticalIssues}</td></tr>`;
   });
+  html+=`</tbody></table></div>`;
 
-  html+=`</tbody></table>`;
+  // Area detail
+  html+=`<div class="sec"><div class="sec-title">Area Detail</div>`;
+  g.keys.forEach(k=>{
+    const a=AREAS[k];
+    const scored=a.items.filter(i=>i.score>0);
+    if(!scored.length) return;
+    const avg=(scored.reduce((s,i)=>s+i.score,0)/scored.length).toFixed(2);
+    const c=avg>=4?'#16a34a':avg>=3?'#d97706':'#dc2626';
+    html+=`<div style="margin-bottom:20px;page-break-inside:avoid;">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f9f9f8;border-radius:6px;border-left:3px solid ${c};margin-bottom:8px;">
+        <span style="font-size:18px;">${a.icon}</span><strong>${trArea(k)}</strong>
+        <span style="margin-left:auto;font-size:18px;font-weight:700;color:${c};">${avg}/5</span>
+      </div>
+      <table><thead><tr><th>ID</th><th>Item</th><th>Level</th><th>Score</th><th>Notes</th></tr></thead><tbody>
+      ${scored.map(item=>{
+        const ic=item.score>=4?'#16a34a':item.score>=3?'#d97706':'#dc2626';
+        const lb=item.level==='Critical'?'#fef2f2':item.level==='Moderate'?'#fffbeb':'#f3f3f1';
+        const lc=item.level==='Critical'?'#dc2626':item.level==='Moderate'?'#d97706':'#999';
+        return`<tr><td style="font-family:monospace;font-size:10px;color:#999;">${item.id}</td>
+          <td>${trItem(item.id,item.item)}</td>
+          <td><span style="background:${lb};color:${lc};padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;">${item.level}</span></td>
+          <td style="font-weight:700;color:${ic};">${item.score}/5</td>
+          <td style="color:#666;">${item.notes||'—'}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>`;
+  });
+  html+=`</div>`;
 
-  // Red flags summary in executive page
-  if(totalFlags>0){
-    html+=`<div class="section-title">Red Flags Summary</div>
-    <div class="flags-section">`;
-    Object.keys(flagsByArea).forEach(k=>{
-      const a=AREAS[k];
-      html+=`<div class="flag-area-block">
-        <div class="flag-area-title">${a.icon} ${trArea(k)}</div>`;
-      flagsByArea[k].forEach(item=>{
-        const col=item.score===1?'#dc2626':'#ea580c';
-        html+=`<div class="flag-item-row">
-          <span class="level-pill lp-${item.level.toLowerCase()}">${item.level}</span>
-          <span class="flag-item-name">${trItem(item.id,item.item)}</span>
-          ${item.notes?`<span class="flag-item-note">${item.notes}</span>`:''}
-          <span class="flag-score" style="color:${col};">${item.score}/5</span>
-        </div>`;
-      });
-      html+=`</div>`;
-    });
+  // Flags
+  const flags=[];
+  Object.keys(AREAS).forEach(k=>{AREAS[k].items.forEach(item=>{if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08)) flags.push({area:trArea(k),item:trItem(item.id,item.item),id:item.id,score:item.score,level:item.level,weight:item.weight});});});
+  if(flags.length){
+    html+=`<div class="sec"><div class="sec-title">Red Flags (${flags.length})</div>`;
+    flags.forEach(f=>{html+=`<div class="flag"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;background:#fee2e2;color:#dc2626;white-space:nowrap;">${f.area}</span><div style="flex:1;"><strong>${f.item}</strong><div style="font-size:10px;color:#999;">${f.id} · ${Math.round(f.weight*100)}% · ${f.level}</div></div><strong style="color:#dc2626;">${f.score}/5</strong></div>`;});
     html+=`</div>`;
   }
 
-  html+=`<div class="report-footer"><span>NUMA Bali · ${resort} Audit Report · ${dateShort}</span><span>Page 2 / ${2+g.keys.filter((_,i)=>g.scores[i].completedCount>0).length}</span></div>
-  </div>`;
-
-  // AREA DETAIL PAGES
-  g.keys.forEach((k,i)=>{
-    const r=g.scores[i];
-    if(r.completedCount===0) return;
-    const a=AREAS[k];
-    const sc=r.avg>0?r.avg.toFixed(2):'—';
-    const col=scoreColor(r.avg);
-    html+=`<div class="content page-break">
-      <div class="section-title">Area Detail — ${trArea(k)}</div>
-      <div class="area-detail">
-        <div class="area-header-detail">
-          <div class="area-header-left">
-            <span class="area-icon-big">${a.icon}</span>
-            <div>
-              <div class="area-title">${trArea(k)}</div>
-              <div class="area-subtitle">${trResp(a.responsible)} · ${r.completedCount}/${r.totalCount} items checked · ${r.complianceRate}% compliance</div>
-            </div>
-          </div>
-          <div style="text-align:right;">
-            <div class="area-score-big" style="color:${col};">${sc}/5</div>
-            ${statusPill(r.status)}
-          </div>
-        </div>
-        <table class="items-table">
-          <thead><tr>
-            <th style="width:70px;">ID</th>
-            <th>Item</th>
-            <th style="width:90px;">Level</th>
-            <th style="width:60px;">Weight</th>
-            <th style="width:70px;">Score</th>
-            <th>Notes</th>
-          </tr></thead>
-          <tbody>`;
-    a.items.filter(item=>item.score>0).forEach(item=>{
-      const sc2=item.score;
-      const ic=scoreColor(sc2);
-      const scoreBg2=sc2>=4?'#f0fdf4':sc2>=3?'#fffbeb':'#fef2f2';
-      const isIssue=sc2<3;
-      const lpClass=item.level==='Critical'?'lp-critical':item.level==='Moderate'?'lp-moderate':'lp-low';
-      html+=`<tr class="${isIssue?'issue':''}">
-        <td style="font-size:10px;color:#94a3b8;font-family:monospace;">${item.id}</td>
-        <td style="font-weight:${isIssue?'600':'400'};color:${isIssue?'#dc2626':'inherit'};">${trItem(item.id,item.item)}</td>
-        <td><span class="level-pill ${lpClass}">${item.level}</span></td>
-        <td style="font-size:11px;color:#94a3b8;">${(item.weight*100).toFixed(0)}%</td>
-        <td><span class="score-badge" style="background:${scoreBg2};color:${ic};">${sc2}</span></td>
-        <td style="font-size:11px;color:#64748b;font-style:${item.notes?'normal':'italic'};">${item.notes||'—'}</td>
-      </tr>`;
-    });
-    html+=`</tbody></table></div>
-      <div class="report-footer"><span>NUMA Bali · ${trArea(k)}</span><span>${dateShort}</span></div>
-    </div>`;
-  });
-
-  html+=`</body></html>`;
-
+  html+=`<div class="footer"><span>NUMA Bali Audit System · ${date}</span><span>Auditor: ${auditor} · Overall: ${overall>0?overall.toFixed(2):'—'}/5</span></div></body></html>`;
   const w=window.open('','_blank');
-  if(!w){showToast('⚠️','Allow popups to export PDF');return;}
-  w.document.write(html);
-  w.document.close();
-  setTimeout(()=>w.print(),800);
-  showToast('📄',tr('pdfOpened'));
+  w.document.write(html);w.document.close();
+  setTimeout(()=>w.print(),500);
+  showToast(tr('pdfOpened'));
 }
 
+// =========================================================
+// I18N APPLICATION
+// =========================================================
+function setLang(lang){
+  LANG=lang;
+  localStorage.setItem('numa_lang',lang);
+  ['en','it','id'].forEach(l=>{
+    ['lb-','ll-'].forEach(p=>{const e=document.getElementById(p+l);if(e)e.classList.toggle('active',l===lang);});
+  });
+  applyI18n();
+  if(document.getElementById('app-shell').style.display!=='none'){
+    buildDashboard();buildSidebar();buildFlags();buildAreaPages();
+    const ap=document.querySelector('.page.active');
+    if(ap?.id==='page-start') buildStartPage();
+    if(ap?.id==='page-history') loadHistory();
+  }
+  setTimeout(applyI18n,80);
+}
+
+function applyI18n(){
+  document.getElementById('lbl-email').textContent=tr('emailLabel');
+  document.getElementById('lbl-password').textContent=tr('passwordLabel');
+  const lbt=document.getElementById('login-btn-text');if(lbt&&!document.getElementById('login-btn').disabled) lbt.textContent=tr('signIn');
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key=el.getAttribute('data-i18n');
+    if(key) el.textContent=tr(key);
+  });
+  const ct=document.getElementById('ct-bar');if(ct) ct.textContent=tr('scoreByArea');
+  const cr=document.getElementById('ct-radar');if(cr) cr.textContent=tr('qualityRadar');
+  const tt=document.getElementById('topbar-title');
+  if(tt){
+    const pages={dashboard:tr('dashboard'),start:tr('startAudit'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings')};
+    Object.keys(pages).forEach(k=>{if(document.getElementById('page-'+k)?.classList.contains('active')) tt.textContent=pages[k];});
+  }
+}
 
 // =========================================================
-// MODAL
+// MODAL / TOAST
 // =========================================================
-function showModal(title,body,onConfirm,confirmLabel='Confirm',danger=true){
+function showModal(title,body,onConfirm,label='Confirm',danger=true){
   document.getElementById('modal-title').textContent=title;
   document.getElementById('modal-body').textContent=body;
-  const btn=document.getElementById('modal-confirm-btn');
-  btn.textContent=confirmLabel;
-  btn.className='btn '+(danger?'btn-danger':'btn-primary');
+  const btn=document.getElementById('modal-btn');
+  btn.textContent=label;btn.className='btn '+(danger?'btn-danger':'btn-primary');
   btn.onclick=()=>{closeModal();onConfirm();};
   document.getElementById('modal').classList.add('show');
 }
 function closeModal(){document.getElementById('modal').classList.remove('show');}
-
-// =========================================================
-// TOAST
-// =========================================================
-function showToast(icon,msg){
+function showToast(msg){
   const t=document.getElementById('toast');
-  document.getElementById('toast-icon').textContent=icon;
   document.getElementById('toast-msg').textContent=msg;
   t.classList.add('show');
-  clearTimeout(window._toastTimer);
-  window._toastTimer=setTimeout(()=>t.classList.remove('show'),3000);
+  clearTimeout(window._tt);
+  window._tt=setTimeout(()=>t.classList.remove('show'),3000);
 }
 
 // =========================================================
-// SETTINGS LOAD
-// =========================================================
-function loadSavedSettings(){
-  const wuEl=document.getElementById('worker-url');if(wuEl) wuEl.value=WORKER_URL_DEFAULT;
-  const wu=document.getElementById('worker-url');if(wu) wu.value=localStorage.getItem('numa_worker_url')||'';
-  const autoBtn=document.getElementById('tg-auto');if(autoBtn&&localStorage.getItem('tg_auto')==='1') autoBtn.classList.add('on');
-  const thresh=document.getElementById('tg-threshold');if(thresh) thresh.value=localStorage.getItem('tg_threshold')||'3';
-}
-
-// =========================================================
-// INIT
-// =========================================================
-function initApp(){
-  LANG=localStorage.getItem('numa_lang')||'en';
-  ['en','it','id'].forEach(l=>{['lb-','ll-'].forEach(p=>{const e=document.getElementById(p+l);if(e)e.classList.toggle('active',l===LANG);});});
-  applyI18n();
-  document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-  buildSidebar();
-  buildDashboard();
-  buildAreaPages();
-  buildFlags();
-  loadSavedSettings();
-  applyI18n();
-  // Test Supabase
-  (async()=>{
-    try{
-      const{error}=await sb.from('audit_sessions').select('id').limit(1);
-      if(error) throw error;
-      setCloudStatus('ok','Cloud connected');
-      setTimeout(()=>setCloudStatus('idle','Cloud ready'),2000);
-    }catch(e){setCloudStatus('error','Cloud offline');}
-  })();
-  // keyboard PIN
-  document.addEventListener('keydown',e=>{
-    if(document.getElementById('login-screen').style.display!=='none') return;
-  });
-}
-
-loadPins();
-checkExistingSession();
-
-// =========================================================
-// MOBILE HELPERS
+// MOBILE / SIDEBAR
 // =========================================================
 function toggleSidebar(){
   const sb=document.getElementById('sidebar');
-  const ov=document.getElementById('sidebar-overlay');
+  const ov=document.getElementById('sb-overlay');
   const isOpen=sb.classList.contains('open');
   sb.classList.toggle('open',!isOpen);
   if(ov) ov.style.display=isOpen?'none':'block';
 }
 function closeSidebar(){
   document.getElementById('sidebar').classList.remove('open');
-  const ov=document.getElementById('sidebar-overlay');
-  if(ov) ov.style.display='none';
-}
-function mobileNav(page){
-  document.querySelectorAll('.mobile-nav-item').forEach(b=>b.classList.remove('active'));
-  const btn=document.getElementById('mnav-'+page);
-  if(btn) btn.classList.add('active');
-  nav(page, document.getElementById('sbitem-'+page));
-  closeSidebar();
+  const ov=document.getElementById('sb-overlay');if(ov) ov.style.display='none';
 }
 
-// Update mobile nav active state when navigating from sidebar
-const _originalNav = nav;
-// Patch ham button to use toggleSidebar
-document.querySelector('.ham').onclick = toggleSidebar;
+// =========================================================
+// INIT
+// =========================================================
+function initApp(){
+  document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  buildSidebar();buildDashboard();buildAreaPages();buildFlags();
+  const an=document.getElementById('auditor-name');if(an) an.value=localStorage.getItem('auditor_name')||'';
+  applyI18n();
+  // Supabase connection check
+  (async()=>{
+    try{const{error}=await sb.from('audit_sessions').select('id').limit(1);
+      if(error) throw error;
+      setCloud('ok','Cloud ready');
+    }catch(e){setCloud('err','Offline');}
+  })();
+}
+
+// Apply theme on load
+const savedTheme=localStorage.getItem('numa_theme')||'light';
+document.documentElement.setAttribute('data-theme',savedTheme);
+updateThemeIcon();
+
+// Apply language on load
+LANG=localStorage.getItem('numa_lang')||'en';
+['en','it','id'].forEach(l=>{
+  ['lb-','ll-'].forEach(p=>{const e=document.getElementById(p+l);if(e)e.classList.toggle('active',l===LANG);});
+});
+applyI18n();
+
+// Check existing session
+checkSession();
 </script>
 </body>
 </html>
