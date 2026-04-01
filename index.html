@@ -517,6 +517,9 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.88 13.67l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.834.93l-.566-.041z"/></svg>
         Report
       </button>
+      <!-- Admin-only topbar actions -->
+      <div id="topbar-admin-actions" style="display:none;gap:6px;display:none;">
+      </div>
     </div>
 
     <div class="content" id="main-content">
@@ -641,11 +644,7 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
             </div>
           </div>
           <div class="settings-card" id="pin-card">
-            <div class="settings-sec-title" data-i18n="pinManagement">Access</div>
-            <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:14px;">
-              Login managed via Supabase Auth.<br>
-              Add users in Supabase → Authentication → Users.
-            </div>
+            <div class="settings-sec-title">Account</div>
             <div class="settings-row">
               <div><div class="settings-row-label">Logged in as</div></div>
               <div style="font-size:11px;color:var(--text2);font-family:'JetBrains Mono',monospace;" id="settings-email">—</div>
@@ -656,6 +655,19 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
             </div>
             <div style="margin-top:12px;">
               <button class="btn btn-danger" onclick="doLogout()" data-i18n="logout">Sign out</button>
+            </div>
+          </div>
+          <!-- ADMIN ONLY: Manager Permissions -->
+          <div class="settings-card" id="permissions-card" style="display:none;grid-column:1/-1;">
+            <div class="settings-sec-title">Manager Permissions</div>
+            <div style="font-size:11px;color:var(--text2);margin-bottom:16px;line-height:1.7;">
+              Control what the manager can see and do in the app. Changes take effect on next login.
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;" id="permissions-grid">
+              <!-- populated by JS -->
+            </div>
+            <div style="margin-top:14px;">
+              <button class="btn btn-primary" onclick="savePermissions()">Save Permissions</button>
             </div>
           </div>
           <!-- Admin only: Manager View -->
@@ -1584,17 +1596,18 @@ function setupApp(){
   const se=document.getElementById('settings-email');if(se) se.textContent=email;
   const sr=document.getElementById('settings-role');if(sr) sr.textContent=rd.label;
   document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
-  document.getElementById('btn-export').style.display=rd.canHistory?'':'none';
-  document.getElementById('btn-tg').style.display=(currentRole==='admin'||currentRole==='manager')?'':'none';
+  // PDF and Telegram report only for admin
+  document.getElementById('btn-export').style.display=currentRole==='admin'?'':'none';
+  document.getElementById('btn-tg').style.display=currentRole==='admin'?'':'none';
   // Show check-in for manager
   const isManager=currentRole==='manager';
   const checkinSb=document.getElementById('sbitem-checkin');
   if(checkinSb) checkinSb.style.display=isManager?'flex':'none';
   const checkinMnav=document.getElementById('mnav-checkin');
   if(checkinMnav) checkinMnav.style.display=isManager?'flex':'none';
-  // Show manager reports for admin
+  // Show manager reports for admin AND manager
   const mrSb=document.getElementById('sbitem-manager-reports');
-  if(mrSb) mrSb.style.display=currentRole==='admin'?'flex':'none';
+  if(mrSb) mrSb.style.display=(currentRole==='admin'||currentRole==='manager')?'flex':'none';
   // Show manager view card in settings for admin
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
@@ -1610,30 +1623,38 @@ function configureMobileNav(){
   const isManager=currentRole==='manager';
   const isAdmin=currentRole==='admin';
   
-  // Manager mobile nav: only checkin + dashboard (manager-specific)
-  // Admin/others: full nav
   const mnavDash=document.getElementById('mnav-dashboard');
   const mnavStart=document.getElementById('mnav-start');
   const mnavFlags=document.getElementById('mnav-flags');
   const mnavCheckin=document.getElementById('mnav-checkin');
   const mnavSettings=document.getElementById('mnav-settings');
+  
+  // Admin mobile: Dashboard | Audit | Flags | Settings (full access)
+  if(isAdmin){
+    if(mnavDash){mnavDash.style.display='flex';mnavDash.style.flex='1';}
+    if(mnavStart){mnavStart.style.display='flex';mnavStart.style.flex='1';}
+    if(mnavFlags){mnavFlags.style.display='flex';mnavFlags.style.flex='1';}
+    if(mnavCheckin) mnavCheckin.style.display='none';
+    if(mnavSettings){mnavSettings.style.display='flex';mnavSettings.style.flex='1';}
+    return;
+  }
 
   if(isManager){
-    // Manager sees: Check-in + Manager Dashboard + Settings
-    if(mnavDash) mnavDash.style.display='none';
-    if(mnavStart) mnavStart.style.display='none';
-    if(mnavFlags) mnavFlags.style.display='none';
-    if(mnavCheckin){mnavCheckin.style.display='flex';mnavCheckin.style.flex='1';}
-    // Add manager dashboard button
+    // Manager mobile: Check-in | Reports | Settings only
     if(mnavDash){
       mnavDash.style.display='flex';
       mnavDash.style.flex='1';
-      // Rename to "Reports" for manager
-      const txt=[...mnavDash.childNodes].filter(n=>n.nodeType===3);
-      if(txt.length) txt[txt.length-1].textContent='Reports';
+      // Rename to "Reports"
+      const lastText=mnavDash.querySelector('svg')?.nextSibling;
+      if(lastText&&lastText.nodeType===3) lastText.textContent=' Reports';
+      else{const span=document.createElement('span');span.textContent='Reports';mnavDash.appendChild(span);}
+      mnavDash.id='mnav-manager-reports';
       mnavDash.onclick=()=>mobileNav('manager-reports');
     }
-    if(mnavSettings) mnavSettings.style.flex='1';
+    if(mnavStart) mnavStart.style.display='none';
+    if(mnavFlags) mnavFlags.style.display='none';
+    if(mnavCheckin){mnavCheckin.style.display='flex';mnavCheckin.style.flex='1';}
+    if(mnavSettings){mnavSettings.style.display='flex';mnavSettings.style.flex='1';}
   }
 }
 
@@ -2440,12 +2461,24 @@ function setLang(lang){
   });
   applyI18n();
   if(document.getElementById('app-shell').style.display!=='none'){
-    buildDashboard();buildSidebar();buildFlags();buildAreaPages();
+    buildSidebar();buildFlags();
+    // Rebuild active page
     const ap=document.querySelector('.page.active');
-    if(ap?.id==='page-start') buildStartPage();
-    if(ap?.id==='page-history') loadHistory();
+    if(!ap) return;
+    if(ap.id==='page-dashboard') buildDashboard();
+    else if(ap.id==='page-start') buildStartPage();
+    else if(ap.id==='page-history') loadHistory();
+    else if(ap.id==='page-flags') buildFlags();
+    else if(ap.id==='page-checkin') buildCheckinPage();
+    else if(ap.id==='page-manager-reports') buildManagerReports();
+    else if(ap.id.startsWith('page-area_')){
+      const key=ap.id.replace('page-area_','');
+      renderArea(key);
+    }
+    // Always rebuild area pages in background for sidebar
+    buildAreaPages();
   }
-  setTimeout(applyI18n,80);
+  setTimeout(applyI18n,50);
 }
 
 function applyI18n(){
@@ -2509,6 +2542,7 @@ function initApp(){
   if(window._defaultPage==='checkin') nav('checkin',document.getElementById('sbitem-checkin'));
   else buildDashboard();
   const an=document.getElementById('auditor-name');if(an) an.value=localStorage.getItem('auditor_name')||'';
+  if(currentRole==='admin') loadPermissionsCard();
   applyI18n();
   // Supabase connection check
   (async()=>{
@@ -2892,7 +2926,65 @@ async function buildManagerReports(){
     </div>`;
   });
 
-  html+=`</div>`;
+  // Item coverage table - how many times each of 116 items was checked
+  const allItems=getAllItems();
+  const itemCoverage={};
+  data.forEach(r=>{
+    if(!itemCoverage[r.item_id]) itemCoverage[r.item_id]={ok:0,warn:0,bad:0,total:0,area:r.area_key};
+    itemCoverage[r.item_id][r.status]++;
+    itemCoverage[r.item_id].total++;
+  });
+
+  const neverChecked=allItems.filter(i=>!itemCoverage[i.id]);
+  const checkedItems=allItems.filter(i=>itemCoverage[i.id]);
+
+  html+=`<div class="table-wrap" style="margin-top:20px;">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Item Coverage — ${checkedItems.length}/${allItems.length} items checked at least once</span>
+      <div style="display:flex;gap:8px;">
+        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--green-bg);color:var(--green);">${checkedItems.length} checked</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--red-bg);color:var(--red);">${neverChecked.length} never</span>
+      </div>
+    </div>
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);">
+      <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+        <div style="width:${Math.round(checkedItems.length/allItems.length*100)}%;height:100%;background:var(--green);border-radius:3px;transition:width .4s;"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:5px;">${Math.round(checkedItems.length/allItems.length*100)}% coverage</div>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr>
+        <th>Item</th><th>Area</th>
+        <th style="color:var(--green);">✓ OK</th>
+        <th style="color:var(--amber);">⚠ Warn</th>
+        <th style="color:var(--red);">✕ Problem</th>
+        <th>Total</th>
+      </tr></thead>
+      <tbody>
+        ${allItems.map(item=>{
+          const cov=itemCoverage[item.id];
+          if(!cov) return `<tr style="opacity:.4;">
+            <td style="font-size:11px;">${trItem(item.id,item.item)}</td>
+            <td style="font-size:10px;color:var(--text3);">${item.areaIcon} ${trArea(item.areaKey)}</td>
+            <td>—</td><td>—</td><td>—</td>
+            <td style="font-size:10px;color:var(--text3);">Never</td>
+          </tr>`;
+          const barW=Math.round((cov.bad/Math.max(cov.total,1))*100);
+          return `<tr>
+            <td style="font-size:11px;font-weight:${cov.bad>0?'600':'400'};color:${cov.bad>0?'var(--red)':'inherit'};">${trItem(item.id,item.item)}</td>
+            <td style="font-size:10px;color:var(--text3);">${item.areaIcon} ${trArea(item.areaKey)}</td>
+            <td style="color:var(--green);font-weight:600;">${cov.ok||'—'}</td>
+            <td style="color:var(--amber);font-weight:600;">${cov.warn||'—'}</td>
+            <td style="color:var(--red);font-weight:600;">${cov.bad||'—'}</td>
+            <td style="font-size:11px;color:var(--text3);">${cov.total}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`;
+
   el.innerHTML=html;
 }
 
@@ -2966,6 +3058,57 @@ async function previewManagerCheckin(){
 
   html+=`</div></div>`;
   el.innerHTML=html;
+}
+
+
+// =========================================================
+// PERMISSIONS MANAGEMENT (admin only)
+// =========================================================
+var DEFAULT_MANAGER_PERMS={
+  canAudit:false,
+  canCheckin:true,
+  canHistory:true,
+  canViewDashboard:true,
+  canViewFlags:false,
+  canSendReport:false,
+  canViewAllAreas:true,
+};
+
+function loadPermissionsCard(){
+  if(currentRole!=='admin') return;
+  const card=document.getElementById('permissions-card');
+  if(card) card.style.display='block';
+  const saved=JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
+  const perms=[
+    {key:'canCheckin',label:'Weekly Check-in',desc:'Manager can submit weekly check-ins'},
+    {key:'canViewDashboard',label:'View Reports',desc:'Manager can view their check-in reports'},
+    {key:'canHistory',label:'View Audit History',desc:'Manager can see audit session history'},
+    {key:'canAudit',label:'Full Audit',desc:'Manager can conduct full area audits'},
+    {key:'canViewFlags',label:'View Red Flags',desc:'Manager can see the red flags page'},
+    {key:'canSendReport',label:'Send Telegram Report',desc:'Manager can trigger Telegram reports'},
+  ];
+  document.getElementById('permissions-grid').innerHTML=perms.map(p=>`
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div style="font-size:12px;font-weight:600;">${p.label}</div>
+        <input type="checkbox" id="perm-${p.key}" ${saved[p.key]?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--text);">
+      </div>
+      <div style="font-size:10px;color:var(--text3);">${p.desc}</div>
+    </div>`).join('');
+}
+
+function savePermissions(){
+  const perms={};
+  ['canCheckin','canViewDashboard','canHistory','canAudit','canViewFlags','canSendReport'].forEach(k=>{
+    const el=document.getElementById('perm-'+k);
+    if(el) perms[k]=el.checked;
+  });
+  localStorage.setItem('manager_perms',JSON.stringify(perms));
+  showToast('Permissions saved — effective on manager next login');
+}
+
+function getManagerPerms(){
+  return JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
 }
 
 
