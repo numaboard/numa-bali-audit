@@ -629,16 +629,13 @@ var auditActive=false;
 var selectedAreas=null;
 var LANG=localStorage.getItem('numa_lang')||'en';
 var barChart=null,radarChart=null,trendChart=null;
-</script>
-<script>
+
 // =========================================================
 // I18N
 // =========================================================
 // =========================================================
 // I18N — TRANSLATIONS
 // =========================================================
-var LANG = localStorage.getItem('numa_lang') || 'en';
-
 var I18N = {
   en:{
     selectRole:'Select your role',
@@ -1073,12 +1070,7 @@ function applyI18n(){
 // =========================================================
 // CONFIG
 // =========================================================
-var SB_URL='https://neziuncmalmrhqvkkerh.supabase.co';
-var SB_KEY='sb_publishable_gpfz_C0HjbKwTMOP9zlxvA__SDd_zgW';
-var TG_TOKEN_DEFAULT='';
-var TG_CHAT_DEFAULT='';
-var WORKER_URL='https://numa-audit.giorgio-troia2021.workers.dev';
-// sb and config declared in first script block
+// Config declared in first script block
 
 
 function tr(key){ try{ return (I18N[LANG]||I18N['en'])[key]||I18N['en'][key]||key; }catch(e){return key;} }
@@ -2228,9 +2220,9 @@ function exportPDF(){
   g.keys.forEach((k,i)=>{
     const r=g.scores[i];const sc=r.avg>0?r.avg.toFixed(2):'—';
     const c=r.avg>=4?'#16a34a':r.avg>=3?'#d97706':r.avg>0?'#dc2626':'#999';
-    const sb=r.status==='PASSED'?'#f0fdf4':r.status==='BORDERLINE'?'#fffbeb':r.status==='PENDING'?'#f9fafb':'#fef2f2';
+    const stBg=r.status==='PASSED'?'#f0fdf4':r.status==='BORDERLINE'?'#fffbeb':r.status==='PENDING'?'#f9fafb':'#fef2f2';
     const sc2=r.status==='PASSED'?'#16a34a':r.status==='BORDERLINE'?'#d97706':r.status==='PENDING'?'#999':'#dc2626';
-    html+=`<tr><td><strong>${AREAS[k].icon} ${trArea(k)}</strong></td><td style="font-weight:700;color:${c};">${sc}</td><td><span class="pill" style="background:${sb};color:${sc2};">${r.status}</span></td><td>${r.completedCount}/${r.totalCount}</td><td style="color:${r.criticalIssues>0?'#dc2626':'#16a34a'};">${r.criticalIssues}</td></tr>`;
+    html+=`<tr><td><strong>${AREAS[k].icon} ${trArea(k)}</strong></td><td style="font-weight:700;color:${c};">${sc}</td><td><span class="pill" style="background:${stBg};color:${sc2};">${r.status}</span></td><td>${r.completedCount}/${r.totalCount}</td><td style="color:${r.criticalIssues>0?'#dc2626':'#16a34a'};">${r.criticalIssues}</td></tr>`;
   });
   html+=`</tbody></table></div>`;
 
@@ -2338,10 +2330,10 @@ function showToast(msg){
 // MOBILE / SIDEBAR
 // =========================================================
 function toggleSidebar(){
-  const sb=document.getElementById('sidebar');
+  const sEl=document.getElementById('sidebar');
   const ov=document.getElementById('sb-overlay');
-  const isOpen=sb.classList.contains('open');
-  sb.classList.toggle('open',!isOpen);
+  const isOpen=sEl.classList.contains('open');
+  sEl.classList.toggle('open',!isOpen);
   if(ov) ov.style.display=isOpen?'none':'block';
 }
 function closeSidebar(){
