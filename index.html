@@ -1105,8 +1105,8 @@ function applyI18n(){
 // =========================================================
 var SB_URL='https://neziuncmalmrhqvkkerh.supabase.co';
 var SB_KEY='sb_publishable_gpfz_C0HjbKwTMOP9zlxvA__SDd_zgW';
-var TG_TOKEN_DEFAULT='8540636538:AAHdDAUioeFIdzAPxivO4QyY0k65OFX8HMQ';
-var TG_CHAT_DEFAULT='6213329694';
+var TG_TOKEN_DEFAULT='';
+var TG_CHAT_DEFAULT='';
 var WORKER_URL='https://numa-audit.giorgio-troia2021.workers.dev';
 var WORKER_URL_DEFAULT='https://numa-audit.giorgio-troia2021.workers.dev';
 var WORKER_URL_DEFAULT='https://numa-audit.giorgio-troia2021.workers.dev';
@@ -1995,35 +1995,59 @@ async function testTelegram(){
   }catch(e){showToast('✕',tr('tgError'));}
 }
 async function sendTelegramReport(){
-  const g=calcGlobal();
-  const auditor=localStorage.getItem('auditor_name')||ROLE_DEFS[currentRole]?.label||'Giorgio';
-  const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
-  const flags=[];
+  const WORKER = 'https://numa-audit.giorgio-troia2021.workers.dev';
+  const g = calcGlobal();
+  const auditor = localStorage.getItem('auditor_name') || 'Giorgio';
+  const date = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});
+
+  const flags = [];
   Object.keys(AREAS).forEach(k=>{
     AREAS[k].items.forEach(item=>{
       if(item.score>0&&item.score<=2&&(item.level==='Critical'||item.weight>=0.08))
-        flags.push({area:AREAS[k].name,key:k,item:trItem(item.id,item.item),id:item.id,score:item.score,level:item.level,weight:item.weight,notes:item.notes||''});
+        flags.push({area:AREAS[k].name,key:k,item:trItem(item.id,item.item),id:item.id,
+          score:item.score,level:item.level,weight:item.weight,notes:item.notes||''});
     });
   });
-  const areasData=g.keys.map((k,i)=>{
-    const r=g.scores[i];const a=AREAS[k];
-    return{name:a.name,icon:a.icon,responsible:a.responsible,avg:r.avg,status:r.status,
-      issues:r.criticalIssues,complianceRate:r.complianceRate,completedCount:r.completedCount,totalCount:r.totalCount,
-      items:a.items.filter(i=>i.score>0).map(i=>({id:i.id,name:trItem(i.id,i.item),score:i.score,level:i.level,weight:i.weight,notes:i.notes||''}))};
+
+  const areasData = g.keys.map((k,i)=>{
+    const r=g.scores[i]; const a=AREAS[k];
+    return {
+      name:a.name, icon:a.icon, responsible:a.responsible,
+      avg:r.avg, status:r.status, issues:r.criticalIssues,
+      complianceRate:r.complianceRate, completedCount:r.completedCount, totalCount:r.totalCount,
+      items:a.items.filter(i=>i.score>0).map(i=>({
+        id:i.id, name:trItem(i.id,i.item), score:i.score,
+        level:i.level, weight:i.weight, notes:i.notes||''
+      }))
+    };
   });
-  const payload={
-    tgToken:TG_TOKEN_DEFAULT,
-    tgChatId:TG_CHAT_DEFAULT,
-    auditData:{date,auditor,overallAvg:g.overallAvg.toFixed(2),progressPct:g.progressPct,
-      failed:g.failed,totalCritical:g.totalCritical,totalFlags:g.totalFlags,areas:areasData,flags}
+
+  const payload = {
+    auditData: {
+      date, auditor,
+      overallAvg: g.overallAvg.toFixed(2),
+      progressPct: g.progressPct,
+      failed: g.failed,
+      totalCritical: g.totalCritical,
+      totalFlags: g.totalFlags,
+      areas: areasData,
+      flags
+    }
   };
-  try{
+
+  try {
     showToast('⏳','Sending report...');
-    const res=await fetch(WORKER_URL_DEFAULT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    const data=await res.json();
+    const res = await fetch(WORKER, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
     if(data.ok) showToast('✈️','Report + PDF sent to Telegram!');
     else showToast('✕','Error: '+(data.error||'check Worker'));
-  }catch(e){showToast('✕','Failed: '+e.message);}
+  } catch(e) {
+    showToast('✕','Failed: '+e.message);
+  }
 }
 
 
