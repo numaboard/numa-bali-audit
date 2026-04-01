@@ -337,7 +337,7 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
 .mobile-nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;color:var(--text3);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;border:none;background:none;transition:color .12s;}
 .mobile-nav-item.active{color:var(--text);}
 .mobile-nav-item svg{width:16px;height:16px;}
-.ham{display:none;background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;}
+.ham{display:none !important;background:none;border:none;color:var(--text2);cursor:pointer;padding:4px;}
 
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%);box-shadow:var(--shadow-md);}
@@ -446,6 +446,10 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
       <div class="sb-item" id="sbitem-start" onclick="nav('start',this)">
         <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 5.5l4 2.5-4 2.5V5.5z"/></svg>
         <span data-i18n="startAudit">Start Audit</span>
+      </div>
+      <div class="sb-item" id="sbitem-manager-reports" onclick="nav('manager-reports',this)" style="display:none;">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6a5 5 0 0110 0H3z"/></svg>
+        Manager Reports
       </div>
       <div class="sb-item" id="sbitem-checkin" onclick="nav('checkin',this)" style="display:none;">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm2 1v10h8V3H4zm1 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/></svg>
@@ -590,6 +594,16 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
         <div id="checkin-content"></div>
       </div>
 
+      <!-- MANAGER REPORTS (admin only) -->
+      <div class="page" id="page-manager-reports">
+        <div class="sec-hdr">
+          <div><h1>Manager Reports</h1><p>Weekly check-in history and reliability</p></div>
+        </div>
+        <div id="manager-reports-content">
+          <div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>
+        </div>
+      </div>
+
       <!-- FLAGS -->
       <div class="page" id="page-flags">
         <div class="sec-hdr">
@@ -611,7 +625,7 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
       <!-- SETTINGS -->
       <div class="page" id="page-settings">
         <div class="sec-hdr"><div><h1 id="sh-settings" data-i18n="settings">Settings</h1></div></div>
-        <div class="settings-grid">
+        <div class="settings-grid" id="settings-grid">
           <div class="settings-card">
             <div class="settings-sec-title" data-i18n="telegramTitle">Telegram</div>
             <div style="background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.7;border:1px solid var(--border);">
@@ -643,6 +657,23 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
             <div style="margin-top:12px;">
               <button class="btn btn-danger" onclick="doLogout()" data-i18n="logout">Sign out</button>
             </div>
+          </div>
+          <!-- Admin only: Manager View -->
+          <div class="settings-card" id="manager-view-card" style="display:none;grid-column:1/-1;">
+            <div class="settings-sec-title">Manager View — Preview</div>
+            <div style="font-size:11px;color:var(--text2);line-height:1.7;margin-bottom:16px;">
+              See exactly what the manager sees when they open the app. Useful to verify the check-in flow and mobile experience.
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="previewManagerCheckin()">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm2 1v10h8V3H4zm1 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/></svg>
+                Preview Weekly Check-in
+              </button>
+              <button class="btn btn-ghost" onclick="nav('manager-reports',document.getElementById('sbitem-manager-reports'))">
+                View Manager Reports →
+              </button>
+            </div>
+            <div id="manager-preview-content" style="margin-top:20px;"></div>
           </div>
         </div>
       </div>
@@ -1558,12 +1589,52 @@ function setupApp(){
   // Show check-in for manager
   const isManager=currentRole==='manager';
   const checkinSb=document.getElementById('sbitem-checkin');
-  if(checkinSb) checkinSb.style.display=isManager||currentRole==='admin'?'flex':'none';
+  if(checkinSb) checkinSb.style.display=isManager?'flex':'none';
   const checkinMnav=document.getElementById('mnav-checkin');
-  if(checkinMnav) checkinMnav.style.display=isManager||currentRole==='admin'?'flex':'none';
+  if(checkinMnav) checkinMnav.style.display=isManager?'flex':'none';
+  // Show manager reports for admin
+  const mrSb=document.getElementById('sbitem-manager-reports');
+  if(mrSb) mrSb.style.display=currentRole==='admin'?'flex':'none';
+  // Show manager view card in settings for admin
+  const mvc=document.getElementById('manager-view-card');
+  if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
   // Manager: go to check-in as default page; Admin: go to dashboard
   if(isManager) window._defaultPage='checkin';
   else window._defaultPage='dashboard';
+
+  // Configure mobile nav per role
+  configureMobileNav();
+}
+
+function configureMobileNav(){
+  const isManager=currentRole==='manager';
+  const isAdmin=currentRole==='admin';
+  
+  // Manager mobile nav: only checkin + dashboard (manager-specific)
+  // Admin/others: full nav
+  const mnavDash=document.getElementById('mnav-dashboard');
+  const mnavStart=document.getElementById('mnav-start');
+  const mnavFlags=document.getElementById('mnav-flags');
+  const mnavCheckin=document.getElementById('mnav-checkin');
+  const mnavSettings=document.getElementById('mnav-settings');
+
+  if(isManager){
+    // Manager sees: Check-in + Manager Dashboard + Settings
+    if(mnavDash) mnavDash.style.display='none';
+    if(mnavStart) mnavStart.style.display='none';
+    if(mnavFlags) mnavFlags.style.display='none';
+    if(mnavCheckin){mnavCheckin.style.display='flex';mnavCheckin.style.flex='1';}
+    // Add manager dashboard button
+    if(mnavDash){
+      mnavDash.style.display='flex';
+      mnavDash.style.flex='1';
+      // Rename to "Reports" for manager
+      const txt=[...mnavDash.childNodes].filter(n=>n.nodeType===3);
+      if(txt.length) txt[txt.length-1].textContent='Reports';
+      mnavDash.onclick=()=>mobileNav('manager-reports');
+    }
+    if(mnavSettings) mnavSettings.style.flex='1';
+  }
 }
 
 // =========================================================
@@ -2161,13 +2232,14 @@ function nav(page,el){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   else{const sbi=document.getElementById('sbitem-'+page);if(sbi) sbi.classList.add('active');}
-  const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings'),checkin:'Weekly Check-in'};
+  const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings'),checkin:'Weekly Check-in','manager-reports':'Manager Reports'};
   document.getElementById('topbar-title').textContent=titles[page]||(AREAS[page.replace('area_','')]?trArea(page.replace('area_','')):page);
   if(page==='dashboard') buildDashboard();
   if(page==='flags') buildFlags();
   if(page==='history') loadHistory();
   if(page==='start') buildStartPage();
   if(page==='checkin') buildCheckinPage();
+  if(page==='manager-reports') buildManagerReports();
   document.getElementById('sidebar').classList.remove('open');
   closeSidebar();
   setTimeout(applyI18n,50);
@@ -2694,6 +2766,209 @@ async function loadManagerReliability(){
 // =========================================================
 // SETUP APP - show check-in for manager
 // =========================================================
+// =========================================================
+// MANAGER REPORTS (admin view)
+// =========================================================
+async function buildManagerReports(){
+  const el=document.getElementById('manager-reports-content');
+  el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Loading manager check-in preview...</div>`;
+
+  const{data,error}=await sb.from('weekly_checkins')
+    .select('*')
+    .order('created_at',{ascending:false})
+    .limit(600);
+
+  if(error||!data||!data.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No check-in data yet. Manager needs to complete at least one weekly check-in.</p></div>';
+    return;
+  }
+
+  // Calculate reliability
+  const weekNum=getWeekNumber();
+  const weeks=[...new Set(data.map(r=>r.week_number))].sort((a,b)=>b-a);
+  const weeksExpected=Math.min(12,weekNum);
+  const reliabilityPct=Math.round((weeks.length/weeksExpected)*100);
+  const relColor=reliabilityPct>=80?'var(--green)':reliabilityPct>=60?'var(--amber)':'var(--red)';
+
+  // Overall stats
+  const totalChecks=data.length;
+  const problems=data.filter(r=>r.status==='bad');
+  const warnings=data.filter(r=>r.status==='warn');
+
+  // Most problematic items
+  const problemItems={};
+  problems.forEach(r=>{
+    if(!problemItems[r.item_id]) problemItems[r.item_id]={count:0,area:r.area_key,notes:[]};
+    problemItems[r.item_id].count++;
+    if(r.note) problemItems[r.item_id].notes.push(r.note);
+  });
+  const topProblems=Object.entries(problemItems)
+    .sort((a,b)=>b[1].count-a[1].count)
+    .slice(0,10);
+
+  let html=`
+  <!-- Reliability Score -->
+  <div class="kpi-grid" style="margin-bottom:20px;">
+    <div class="kpi-card">
+      <div class="kpi-label">Reliability Score</div>
+      <div class="kpi-value" style="color:${relColor};">${reliabilityPct}%</div>
+      <div class="kpi-sub">${weeks.length}/${weeksExpected} weeks submitted</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Checks</div>
+      <div class="kpi-value">${totalChecks}</div>
+      <div class="kpi-sub">Items reviewed</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Problems Found</div>
+      <div class="kpi-value r">${problems.length}</div>
+      <div class="kpi-sub">${Math.round(problems.length/totalChecks*100)}% of checks</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Warnings</div>
+      <div class="kpi-value a">${warnings.length}</div>
+      <div class="kpi-sub">${Math.round(warnings.length/totalChecks*100)}% of checks</div>
+    </div>
+  </div>`;
+
+  // Top recurring problems
+  if(topProblems.length){
+    html+=`<div class="table-wrap" style="margin-bottom:20px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Recurring Problems</div>
+      <table><thead><tr><th>Item</th><th>Area</th><th>Times flagged</th><th>Latest note</th></tr></thead><tbody>`;
+    topProblems.forEach(([itemId,info])=>{
+      const itemName=trItem(itemId,itemId);
+      const areaName=trArea(info.area);
+      const latestNote=info.notes[0]||'—';
+      html+=`<tr>
+        <td style="font-weight:500;">${itemName}</td>
+        <td style="font-size:11px;color:var(--text2);">${areaName}</td>
+        <td><span style="font-weight:600;color:var(--red);">${info.count}×</span></td>
+        <td style="font-size:11px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${latestNote}</td>
+      </tr>`;
+    });
+    html+=`</tbody></table></div>`;
+  }
+
+  // Week by week history
+  html+=`<div class="table-wrap">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</div>`;
+
+  const byWeek={};
+  data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
+
+  Object.keys(byWeek).sort((a,b)=>b-a).forEach(week=>{
+    const items=byWeek[week];
+    const ok=items.filter(i=>i.status==='ok').length;
+    const warn=items.filter(i=>i.status==='warn').length;
+    const bad=items.filter(i=>i.status==='bad').length;
+    const date=new Date(items[0].created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const pctOk=Math.round(ok/items.length*100);
+    const barColor=pctOk>=80?'var(--green)':pctOk>=60?'var(--amber)':'var(--red)';
+    
+    // Get problem notes for this week
+    const weekProblems=items.filter(i=>i.status==='bad'||i.status==='warn');
+    
+    html+=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+        <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:60px;">Week ${week}</div>
+        <div style="font-size:12px;font-weight:500;">${date}</div>
+        <div style="flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+          <div style="width:${pctOk}%;height:100%;background:${barColor};border-radius:2px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;font-size:11px;font-weight:600;">
+          <span style="color:var(--green);">✓${ok}</span>
+          <span style="color:var(--amber);">⚠${warn}</span>
+          <span style="color:var(--red);">✕${bad}</span>
+        </div>
+      </div>
+      ${weekProblems.length?`<div style="display:flex;flex-direction:column;gap:4px;">
+        ${weekProblems.map(p=>`<div style="display:flex;gap:8px;font-size:11px;padding:4px 8px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:4px;">
+          <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:600;">${p.status==='bad'?'✕':'⚠'}</span>
+          <span style="flex:1;">${trItem(p.item_id,p.item_id)} <span style="color:var(--text3);">· ${trArea(p.area_key)}</span></span>
+          ${p.note?`<span style="color:var(--text2);font-style:italic;">${p.note}</span>`:''}
+        </div>`).join('')}
+      </div>`:''}
+    </div>`;
+  });
+
+  html+=`</div>`;
+  el.innerHTML=html;
+}
+
+
+// =========================================================
+// ADMIN: PREVIEW MANAGER CHECK-IN
+// =========================================================
+async function previewManagerCheckin(){
+  const el=document.getElementById('manager-preview-content');
+  el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Loading manager check-in preview...</div>`;
+
+  // Get the same items the manager would see this week
+  // Temporarily simulate manager role for item calculation
+  const savedRole=currentRole;
+  currentRole='manager';
+  const items=await getWeeklyItems();
+  currentRole=savedRole;
+
+  const weekNum=getWeekNumber();
+  const now=new Date();
+  const weekStr=`Week ${weekNum} — ${now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`;
+
+  // Check if manager already submitted this week
+  // (we check all users' submissions for this week)
+  const{data:existing}=await sb.from('weekly_checkins')
+    .select('manager_id,status,item_id,note,created_at')
+    .eq('week_number',weekNum)
+    .limit(200);
+
+  const submitted=existing&&existing.length>0;
+
+  let html=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:12px;font-weight:600;">Manager's Check-in — ${weekStr}</div>
+      <div style="font-size:10px;padding:2px 8px;border-radius:20px;background:${submitted?'var(--green-bg)':'var(--amber-bg)'};color:${submitted?'var(--green)':'var(--amber)'};">
+        ${submitted?'✓ Submitted this week':'⏳ Not yet submitted'}
+      </div>
+    </div>
+    <div style="padding:12px 16px;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">${items.length} items assigned this week (out of 116 total)</div>`;
+
+  // Group items by area for preview
+  const byArea={};
+  items.forEach(item=>{
+    if(!byArea[item.areaKey]) byArea[item.areaKey]={name:trArea(item.areaKey),icon:AREAS[item.areaKey].icon,items:[]};
+    byArea[item.areaKey].items.push(item);
+  });
+
+  // Build submitted responses map if available
+  const respMap={};
+  (existing||[]).forEach(r=>{respMap[r.item_id]={status:r.status,note:r.note};});
+
+  Object.keys(byArea).forEach(k=>{
+    const area=byArea[k];
+    html+=`<div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;">${area.icon} ${area.name} (${area.items.length} items)</div>
+      <div style="display:flex;flex-direction:column;gap:4px;">`;
+    area.items.forEach(item=>{
+      const resp=respMap[item.id];
+      const statusColor=resp?.status==='ok'?'var(--green)':resp?.status==='warn'?'var(--amber)':resp?.status==='bad'?'var(--red)':'var(--text3)';
+      const statusIcon=resp?.status==='ok'?'✓':resp?.status==='warn'?'⚠':resp?.status==='bad'?'✕':'○';
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px;">
+        <span style="color:${statusColor};font-weight:600;min-width:14px;">${statusIcon}</span>
+        <span style="flex:1;">${trItem(item.id,item.item)}</span>
+        ${item.level==='Critical'?'<span style="font-size:9px;color:var(--red);font-weight:600;">Critical</span>':''}
+        ${resp?.note?`<span style="font-size:10px;color:var(--text2);font-style:italic;">📝 ${resp.note}</span>`:''}
+      </div>`;
+    });
+    html+=`</div></div>`;
+  });
+
+  html+=`</div></div>`;
+  el.innerHTML=html;
+}
+
+
 // Apply theme on load
 const savedTheme=localStorage.getItem('numa_theme')||'light';
 document.documentElement.setAttribute('data-theme',savedTheme);
