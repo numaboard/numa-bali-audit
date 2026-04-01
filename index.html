@@ -1627,8 +1627,9 @@ function setupApp(){
   // Show manager view card in settings for admin
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
-  // Manager: go to check-in as default page; Admin: go to dashboard
+  // Default page per role
   if(isManager) window._defaultPage='checkin';
+  else if(isInvestor) window._defaultPage='history';
   else window._defaultPage='dashboard';
 
   // Configure mobile nav per role
@@ -2295,6 +2296,16 @@ function updateSBScores(){
 // NAV
 // =========================================================
 function nav(page,el){
+  // Access control
+  const adminOnly=['start','flags','area_'];
+  const managerOnly=['checkin'];
+  if(currentRole==='manager'){
+    if(adminOnly.some(p=>page.startsWith(p))){showToast('Access restricted');return;}
+  }
+  if(currentRole==='investor'){
+    if(adminOnly.some(p=>page.startsWith(p))||managerOnly.some(p=>page===p)){showToast('Access restricted');return;}
+  }
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   const pg=document.getElementById('page-'+page);
