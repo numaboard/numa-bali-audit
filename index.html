@@ -1628,8 +1628,13 @@ function setupApp(){
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
   // Default page per role
-  if(isManager) window._defaultPage='checkin';
-  else if(isInvestor) window._defaultPage='history';
+  if(isManager){
+    const p=getManagerPerms();
+    if(p.canCheckin) window._defaultPage='checkin';
+    else if(p.canManagerReports) window._defaultPage='manager-reports';
+    else if(p.canDashboard) window._defaultPage='dashboard';
+    else window._defaultPage='settings';
+  } else if(isInvestor) window._defaultPage='history';
   else window._defaultPage='dashboard';
 
   // Configure mobile nav per role
@@ -2056,6 +2061,21 @@ function changeScore(key,idx,delta){
   },800);
 }
 
+function showAccessDenied(){
+  // Show a centered modal instead of toast
+  showModal(
+    '🔒 Access Restricted',
+    'You do not have permission to access this section.',
+    ()=>{},
+    'OK',
+    false
+  );
+  // Override modal button to just close
+  const btn=document.getElementById('modal-btn');
+  if(btn){btn.className='btn btn-primary';btn.onclick=closeModal;}
+}
+
+
 function discardAudit(){
   showModal('Discard Audit','All current scores will be lost. This cannot be undone.',()=>{
     // Reset all scores
@@ -2297,13 +2317,13 @@ function updateSBScores(){
 // =========================================================
 function nav(page,el){
   // Access control
-  const adminOnly=['start','flags','area_'];
-  const managerOnly=['checkin'];
+  const adminOnly=['start','flags','area_','dashboard','history'];
+  const managerOnly=['checkin','manager-reports'];
   if(currentRole==='manager'){
-    if(adminOnly.some(p=>page.startsWith(p))){showToast('Access restricted');return;}
+    if(adminOnly.some(p=>page===p||page.startsWith('area_'))){showAccessDenied();return;}
   }
   if(currentRole==='investor'){
-    if(adminOnly.some(p=>page.startsWith(p))||managerOnly.some(p=>page===p)){showToast('Access restricted');return;}
+    if(['start','flags','checkin','manager-reports'].some(p=>page===p||page.startsWith('area_'))){showAccessDenied();return;}
   }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -3124,13 +3144,13 @@ async function previewManagerCheckin(){
 // PERMISSIONS MANAGEMENT (admin only)
 // =========================================================
 var DEFAULT_MANAGER_PERMS={
-  canAudit:false,
   canCheckin:true,
-  canHistory:true,
-  canViewDashboard:true,
-  canViewFlags:false,
+  canManagerReports:true,
+  canDashboard:false,
+  canHistory:false,
+  canAudit:false,
+  canFlags:false,
   canSendReport:false,
-  canViewAllAreas:true,
 };
 
 function loadPermissionsCard(){
@@ -3139,31 +3159,36 @@ function loadPermissionsCard(){
   if(card) card.style.display='block';
   const saved=JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
   const perms=[
-    {key:'canCheckin',label:'Weekly Check-in',desc:'Manager can submit weekly check-ins'},
-    {key:'canViewDashboard',label:'View Reports',desc:'Manager can view their check-in reports'},
-    {key:'canHistory',label:'View Audit History',desc:'Manager can see audit session history'},
-    {key:'canAudit',label:'Full Audit',desc:'Manager can conduct full area audits'},
-    {key:'canViewFlags',label:'View Red Flags',desc:'Manager can see the red flags page'},
-    {key:'canSendReport',label:'Send Telegram Report',desc:'Manager can trigger Telegram reports'},
+    {key:'canCheckin',      label:'Weekly Check-in',    desc:'Submit weekly check-in (29 items/week)',   default:true},
+    {key:'canManagerReports',label:'Manager Reports',   desc:'View own check-in history and metrics',    default:true},
+    {key:'canDashboard',   label:'Overview Dashboard',  desc:'See the main overview dashboard',           default:false},
+    {key:'canHistory',     label:'Audit History',       desc:'View past full audit sessions',             default:false},
+    {key:'canAudit',       label:'Full Audit',          desc:'Conduct a full property audit',             default:false},
+    {key:'canFlags',       label:'Red Flags',           desc:'View red flags page',                       default:false},
+    {key:'canSendReport',  label:'Send Telegram Report',desc:'Trigger Telegram report delivery',          default:false},
   ];
-  document.getElementById('permissions-grid').innerHTML=perms.map(p=>`
-    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <div style="font-size:12px;font-weight:600;">${p.label}</div>
-        <input type="checkbox" id="perm-${p.key}" ${saved[p.key]?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--text);">
+  document.getElementById('permissions-grid').innerHTML=`
+    <div style="grid-column:1/-1;font-size:11px;color:var(--text2);margin-bottom:8px;padding:10px 12px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);">
+      Changes take effect on manager's next login or page refresh.
+    </div>
+  `+perms.map(p=>`
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;display:flex;align-items:flex-start;gap:10px;">
+      <input type="checkbox" id="perm-${p.key}" ${saved[p.key]?'checked':''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--text);margin-top:2px;flex-shrink:0;">
+      <div>
+        <div style="font-size:12px;font-weight:600;margin-bottom:2px;">${p.label}</div>
+        <div style="font-size:10px;color:var(--text3);">${p.desc}</div>
       </div>
-      <div style="font-size:10px;color:var(--text3);">${p.desc}</div>
     </div>`).join('');
 }
 
 function savePermissions(){
   const perms={};
-  ['canCheckin','canViewDashboard','canHistory','canAudit','canViewFlags','canSendReport'].forEach(k=>{
+  ['canCheckin','canManagerReports','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
     const el=document.getElementById('perm-'+k);
     if(el) perms[k]=el.checked;
   });
   localStorage.setItem('manager_perms',JSON.stringify(perms));
-  showToast('Permissions saved — effective on manager next login');
+  showToast('✓ Permissions saved');
 }
 
 function getManagerPerms(){
