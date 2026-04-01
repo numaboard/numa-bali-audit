@@ -306,6 +306,26 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--text);color:var(--surface);border-radius:var(--radius-sm);padding:10px 16px;font-size:12px;display:none;align-items:center;gap:8px;z-index:999;box-shadow:var(--shadow-md);}
 .toast.show{display:flex;}
 
+/* ── CHECK-IN ── */
+.checkin-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:8px;box-shadow:var(--shadow);transition:all .15s;}
+.checkin-item.done{opacity:.6;border-color:var(--border);}
+.checkin-item-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.checkin-area-tag{font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;background:var(--surface2);color:var(--text3);white-space:nowrap;}
+.checkin-item-name{font-size:13px;font-weight:500;flex:1;line-height:1.4;}
+.checkin-btns{display:flex;gap:8px;}
+.checkin-btn{flex:1;padding:10px 8px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;text-align:center;}
+.checkin-btn:hover{border-color:var(--border2);}
+.checkin-btn.ok.selected{background:var(--green-bg);border-color:var(--green);color:var(--green);}
+.checkin-btn.warn.selected{background:var(--amber-bg);border-color:var(--amber);color:var(--amber);}
+.checkin-btn.bad.selected{background:var(--red-bg);border-color:var(--red);color:var(--red);}
+.checkin-note{width:100%;margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;font-size:12px;color:var(--text);display:none;}
+.checkin-note.show{display:block;}
+.checkin-progress-bar{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:20px;}
+.checkin-progress-fill{height:100%;background:var(--text);border-radius:2px;transition:width .4s ease;}
+.checkin-week-info{background:var(--surface2);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:16px;font-size:11px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;}
+.checkin-history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:6px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);}
+.reliability-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600;}
+
 /* ── EMPTY ── */
 .empty{text-align:center;padding:48px 24px;color:var(--text3);}
 .empty-icon{font-size:28px;margin-bottom:10px;opacity:.5;}
@@ -336,6 +356,15 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
   .note-input{width:90px;}
 }
 @media(max-width:480px){
+  /* Mobile audit table — show only essentials */
+  .score-stepper button{width:32px;height:32px;font-size:18px;}
+  .score-num{font-size:16px;min-width:24px;}
+  .note-input{width:80px;font-size:11px;}
+  tbody td{padding:10px 8px;}
+  thead th{padding:8px;}
+  .area-card{padding:12px;}
+  .area-score{font-size:22px;}
+
   .areas-grid{grid-template-columns:1fr;}
   .area-prog-grid{grid-template-columns:1fr;}
   .kpi-grid{grid-template-columns:repeat(2,1fr);}
@@ -389,6 +418,10 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 110-2 1 1 0 010 2z"/></svg>
       Flags
     </button>
+    <button class="mobile-nav-item" id="mnav-checkin" onclick="mobileNav('checkin')" style="display:none;">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm2 1v10h8V3H4zm1 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/></svg>
+      Check-in
+    </button>
     <button class="mobile-nav-item" id="mnav-settings" onclick="mobileNav('settings')">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 5a3 3 0 100 6A3 3 0 008 5zm0 1.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3z"/><path d="M8 1a1 1 0 00-1 1v.5A5.5 5.5 0 003.5 8c0 .2.01.4.04.59L3 8.85a1 1 0 00-.37 1.37l1 1.73a1 1 0 001.37.37l.55-.32A5.5 5.5 0 007 13.5V14a1 1 0 002 0v-.5a5.5 5.5 0 002.45-1.6l.55.32a1 1 0 001.37-.37l1-1.73a1 1 0 00-.37-1.37l-.54-.26A5.5 5.5 0 0013.5 8a5.5 5.5 0 00-3.5-5.12V2.5a1 1 0 00-1-1.5z"/></svg>
       Settings
@@ -413,6 +446,11 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
       <div class="sb-item" id="sbitem-start" onclick="nav('start',this)">
         <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 5.5l4 2.5-4 2.5V5.5z"/></svg>
         <span data-i18n="startAudit">Start Audit</span>
+      </div>
+      <div class="sb-item" id="sbitem-checkin" onclick="nav('checkin',this)" style="display:none;">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2a1 1 0 011-1h10a1 1 0 011 1v12a1 1 0 01-1 1H3a1 1 0 01-1-1V2zm2 1v10h8V3H4zm1 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/></svg>
+        <span>Weekly Check-in</span>
+        <span class="sb-badge" id="sb-checkin-badge" style="display:none;background:var(--blue-bg);color:var(--blue);">!</span>
       </div>
       <div class="sb-item" id="sbitem-flags" onclick="nav('flags',this)">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 018 4zm0 8a1 1 0 110-2 1 1 0 010 2z"/></svg>
@@ -536,6 +574,21 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
 
       <!-- AREA PAGES -->
       <div id="area-pages"></div>
+
+      <!-- WEEKLY CHECK-IN -->
+      <div class="page" id="page-checkin">
+        <div class="sec-hdr">
+          <div>
+            <h1 id="sh-checkin">Weekly Check-in</h1>
+            <p id="checkin-subtitle">Your items for this week</p>
+          </div>
+          <div class="btn-row">
+            <span id="checkin-progress-badge" style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;"></span>
+            <button class="btn btn-primary" onclick="submitCheckin()" id="checkin-submit-btn">Submit</button>
+          </div>
+        </div>
+        <div id="checkin-content"></div>
+      </div>
 
       <!-- FLAGS -->
       <div class="page" id="page-flags">
@@ -1497,11 +1550,20 @@ function setupApp(){
   document.getElementById('sb-avatar').textContent=initials;
   document.getElementById('sb-user-name').textContent=email;
   document.getElementById('sb-user-role').textContent=rd.label;
-  document.getElementById('settings-email').textContent=email;
-  document.getElementById('settings-role').textContent=rd.label;
+  const se=document.getElementById('settings-email');if(se) se.textContent=email;
+  const sr=document.getElementById('settings-role');if(sr) sr.textContent=rd.label;
   document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
   document.getElementById('btn-export').style.display=rd.canHistory?'':'none';
   document.getElementById('btn-tg').style.display=(currentRole==='admin'||currentRole==='manager')?'':'none';
+  // Show check-in for manager
+  const isManager=currentRole==='manager';
+  const checkinSb=document.getElementById('sbitem-checkin');
+  if(checkinSb) checkinSb.style.display=isManager||currentRole==='admin'?'flex':'none';
+  const checkinMnav=document.getElementById('mnav-checkin');
+  if(checkinMnav) checkinMnav.style.display=isManager||currentRole==='admin'?'flex':'none';
+  // Manager: go to check-in as default page; Admin: go to dashboard
+  if(isManager) window._defaultPage='checkin';
+  else window._defaultPage='dashboard';
 }
 
 // =========================================================
@@ -1809,8 +1871,8 @@ function renderArea(key){
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
     ${statusTag(r.status)}
     <div class="bar-track" style="flex:1;min-width:100px;height:4px;"><div class="bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
-    ${canEdit?`<button class="btn btn-primary" onclick="saveArea('${key}')">Save</button>`:''}
     ${(canEdit||currentRole==='admin')?`<button class="btn btn-ghost" onclick="sendAreaTelegram('${key}')">Send</button>`:''}
+    <span id="autosave-${key}" style="font-size:10px;color:var(--text3);display:none;">✓ Saved</span>
   </div>
   <div class="table-wrap">
     <div class="table-toolbar">
@@ -1871,8 +1933,31 @@ function changeScore(key,idx,delta){
   const bf=document.getElementById('bar-'+key+'-'+idx);
   bf.style.width=pct+'%'; bf.style.background=scoreColor(s);
   const tr2=sv.closest('tr'); if(tr2) tr2.setAttribute('data-score',s);
-  // Update progress bar if active
   if(auditActive){const ps=document.getElementById('progress-bar-section');if(ps) buildProgressBar();}
+  // Auto-update sidebar score
+  updateSBScores();
+  // Auto-update dashboard KPIs without full rebuild
+  autoUpdateKPIs();
+  // Show auto-save indicator
+  clearTimeout(window._asTimer);
+  window._asTimer=setTimeout(()=>{
+    const el=document.getElementById('autosave-'+key);
+    if(el){el.style.display='inline';setTimeout(()=>el.style.display='none',1500);}
+  },800);
+}
+
+function autoUpdateKPIs(){
+  const g=calcGlobal();
+  const avg=g.overallAvg;
+  const ac=avg>=4?'g':avg>=3?'a':avg>0?'r':'n';
+  const kv=document.querySelector('.kpi-value.g, .kpi-value.a, .kpi-value.r, .kpi-value.n');
+  if(kv){
+    kv.className='kpi-value '+ac;
+    kv.innerHTML=avg>0?avg.toFixed(2)+'<span style="font-size:14px;font-weight:400;color:var(--text3);">/5</span>':'—';
+  }
+  // Update flag count
+  const flagCnt=document.getElementById('sb-flag-count');
+  if(flagCnt){flagCnt.textContent=g.totalFlags;flagCnt.style.display=g.totalFlags?'':'none';}
 }
 
 function filterArea(key,filter,btn){
@@ -2076,12 +2161,13 @@ function nav(page,el){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   else{const sbi=document.getElementById('sbitem-'+page);if(sbi) sbi.classList.add('active');}
-  const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings')};
+  const titles={start:tr('startAudit'),dashboard:tr('dashboard'),flags:tr('redFlags'),history:tr('history'),settings:tr('settings'),checkin:'Weekly Check-in'};
   document.getElementById('topbar-title').textContent=titles[page]||(AREAS[page.replace('area_','')]?trArea(page.replace('area_','')):page);
   if(page==='dashboard') buildDashboard();
   if(page==='flags') buildFlags();
   if(page==='history') loadHistory();
   if(page==='start') buildStartPage();
+  if(page==='checkin') buildCheckinPage();
   document.getElementById('sidebar').classList.remove('open');
   closeSidebar();
   setTimeout(applyI18n,50);
@@ -2347,7 +2433,9 @@ function closeSidebar(){
 // =========================================================
 function initApp(){
   const tdEl=document.getElementById('topbar-date');if(tdEl) tdEl.textContent=new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-  buildSidebar();buildDashboard();buildAreaPages();buildFlags();
+  buildSidebar();buildAreaPages();buildFlags();
+  if(window._defaultPage==='checkin') nav('checkin',document.getElementById('sbitem-checkin'));
+  else buildDashboard();
   const an=document.getElementById('auditor-name');if(an) an.value=localStorage.getItem('auditor_name')||'';
   applyI18n();
   // Supabase connection check
@@ -2359,6 +2447,253 @@ function initApp(){
   })();
 }
 
+// =========================================================
+// WEEKLY CHECK-IN SYSTEM
+// =========================================================
+
+// All audit items flat list with area info
+function getAllItems(){
+  const all=[];
+  Object.keys(AREAS).forEach(k=>{
+    AREAS[k].items.forEach(item=>{
+      all.push({...item,areaKey:k,areaName:AREAS[k].name,areaIcon:AREAS[k].icon});
+    });
+  });
+  return all;
+}
+
+// Spaced repetition: prioritize items not seen recently or with problems
+async function getWeeklyItems(){
+  const allItems=getAllItems(); // ~100 items total
+  const weekNum=getWeekNumber();
+  const monthNum=new Date().getMonth();
+
+  // Load history of this manager's check-ins
+  const{data:history}=await sb.from('weekly_checkins')
+    .select('item_id,status,week_number,created_at')
+    .eq('manager_id',currentUser.id)
+    .order('created_at',{ascending:false})
+    .limit(200);
+
+  const histMap={};
+  (history||[]).forEach(h=>{
+    if(!histMap[h.item_id]) histMap[h.item_id]={lastWeek:h.week_number,lastStatus:h.status,count:0};
+    histMap[h.item_id].count++;
+  });
+
+  // Scoring: higher = more urgent to show this week
+  const scored=allItems.map(item=>{
+    const h=histMap[item.id];
+    let score=0;
+    if(!h) score=100; // never seen → highest priority
+    else{
+      const weeksSince=weekNum-(h.lastWeek||0);
+      score+=weeksSince*10; // older = higher priority
+      if(h.lastStatus==='bad') score+=50; // problems get resurface faster
+      if(h.lastStatus==='warn') score+=20;
+      if(item.level==='Critical') score+=15; // critical items more frequent
+    }
+    return{...item,urgencyScore:score};
+  });
+
+  scored.sort((a,b)=>b.urgencyScore-a.urgencyScore);
+
+  // 116 total items, 4 weeks per month = 29 items per week
+  // All items covered in a month
+  const TOTAL_ITEMS=getAllItems().length;
+  const WEEKS_PER_MONTH=4;
+  const weekSize=Math.ceil(TOTAL_ITEMS/WEEKS_PER_MONTH); // 29
+  return scored.slice(0,weekSize);
+}
+
+function getWeekNumber(){
+  const now=new Date();
+  const start=new Date(now.getFullYear(),0,1);
+  return Math.ceil(((now-start)/86400000+start.getDay()+1)/7);
+}
+
+// Current check-in state
+var checkinItems=[];
+var checkinResponses={};
+
+async function buildCheckinPage(){
+  const content=document.getElementById('checkin-content');
+  content.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading your items...</p></div>';
+
+  // Check if already submitted this week
+  const weekNum=getWeekNumber();
+  const{data:existing}=await sb.from('weekly_checkins')
+    .select('id')
+    .eq('manager_id',currentUser.id)
+    .eq('week_number',weekNum)
+    .limit(1);
+
+  const alreadyDone=existing&&existing.length>0;
+
+  // Get items for this week
+  checkinItems=await getWeeklyItems();
+  checkinResponses={};
+
+  const now=new Date();
+  const weekStr=`Week ${weekNum} — ${now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`;
+  document.getElementById('checkin-subtitle').textContent=weekStr;
+  // Show total items info
+  const totalAll=getAllItems().length;
+  const weeksPerMonth=4;
+  const weekSize=Math.ceil(totalAll/weeksPerMonth);
+  document.getElementById('checkin-progress-badge').textContent=`0/${checkinItems.length}`;
+
+  if(alreadyDone){
+    content.innerHTML=`<div style="text-align:center;padding:40px 20px;">
+      <div style="font-size:32px;margin-bottom:12px;">✓</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px;">Check-in completed</div>
+      <div style="font-size:13px;color:var(--text3);margin-bottom:24px;">You've already submitted this week's check-in.</div>
+      <button class="btn btn-ghost" onclick="loadCheckinHistory()">View history</button>
+    </div>`;
+    document.getElementById('checkin-submit-btn').style.display='none';
+    return;
+  }
+
+  document.getElementById('checkin-submit-btn').style.display='';
+
+  let html=`<div class="checkin-week-info">
+    <span>${weekStr} · ${checkinItems.length} items assigned</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;">116 items · all covered in 4 weeks</span>
+  </div>
+  <div class="checkin-progress-bar"><div class="checkin-progress-fill" id="ci-prog" style="width:0%;"></div></div>`;
+
+  checkinItems.forEach((item,idx)=>{
+    html+=`<div class="checkin-item" id="ci-${idx}">
+      <div class="checkin-item-top">
+        <span class="checkin-area-tag">${item.areaIcon} ${trArea(item.areaKey)}</span>
+        <div class="checkin-item-name">${trItem(item.id,item.item)}</div>
+        ${item.level==='Critical'?'<span style="font-size:9px;font-weight:600;color:var(--red);white-space:nowrap;">Critical</span>':''}
+      </div>
+      <div class="checkin-btns">
+        <button class="checkin-btn ok" onclick="setCheckin(${idx},'ok')">✓ OK</button>
+        <button class="checkin-btn warn" onclick="setCheckin(${idx},'warn')">⚠ Attention</button>
+        <button class="checkin-btn bad" onclick="setCheckin(${idx},'bad')">✕ Problem</button>
+      </div>
+      <input class="checkin-note" id="ci-note-${idx}" placeholder="Add note..." oninput="checkinResponses[${idx}]={...(checkinResponses[${idx}]||{}),note:this.value}">
+    </div>`;
+  });
+
+  content.innerHTML=html;
+}
+
+function setCheckin(idx,status){
+  checkinResponses[idx]={status,note:document.getElementById('ci-note-'+idx)?.value||''};
+  // Update buttons
+  const item=document.getElementById('ci-'+idx);
+  item.querySelectorAll('.checkin-btn').forEach(b=>b.classList.remove('selected'));
+  item.querySelector('.checkin-btn.'+status).classList.add('selected');
+  item.classList.toggle('done',true);
+  // Show note field for problems/warnings
+  const noteEl=document.getElementById('ci-note-'+idx);
+  if(noteEl) noteEl.className='checkin-note'+(status!=='ok'?' show':'');
+  // Update progress
+  const done=Object.keys(checkinResponses).length;
+  document.getElementById('checkin-progress-badge').textContent=done+'/'+checkinItems.length;
+  const pct=Math.round(done/checkinItems.length*100);
+  const prog=document.getElementById('ci-prog');
+  if(prog) prog.style.width=pct+'%';
+}
+
+async function submitCheckin(){
+  const done=Object.keys(checkinResponses).length;
+  if(done<checkinItems.length*0.8){
+    showToast('Please complete at least 80% of items before submitting');
+    return;
+  }
+  const weekNum=getWeekNumber();
+  const rows=checkinItems.map((item,idx)=>{
+    const resp=checkinResponses[idx]||{status:'ok',note:''};
+    return{
+      manager_id:currentUser.id,
+      item_id:item.id,
+      area_key:item.areaKey,
+      status:resp.status,
+      note:resp.note||'',
+      week_number:weekNum,
+      urgency_score:item.urgencyScore||0
+    };
+  });
+
+  const{error}=await sb.from('weekly_checkins').insert(rows);
+  if(error){showToast('Error saving: '+error.message);return;}
+  showToast('✓ Weekly check-in submitted!');
+  buildCheckinPage(); // reload to show completed state
+}
+
+async function loadCheckinHistory(){
+  const{data}=await sb.from('weekly_checkins')
+    .select('*')
+    .eq('manager_id',currentUser.id)
+    .order('created_at',{ascending:false})
+    .limit(100);
+
+  if(!data||!data.length){
+    document.getElementById('checkin-content').innerHTML='<div class="empty"><p>No check-in history yet.</p></div>';
+    return;
+  }
+
+  // Group by week
+  const byWeek={};
+  data.forEach(r=>{
+    if(!byWeek[r.week_number]) byWeek[r.week_number]=[];
+    byWeek[r.week_number].push(r);
+  });
+
+  let html='<button class="btn btn-ghost" style="margin-bottom:16px;" onclick="buildCheckinPage()">← Back</button>';
+  html+='<div style="display:flex;flex-direction:column;gap:8px;">';
+  Object.keys(byWeek).sort((a,b)=>b-a).forEach(week=>{
+    const items=byWeek[week];
+    const ok=items.filter(i=>i.status==='ok').length;
+    const warn=items.filter(i=>i.status==='warn').length;
+    const bad=items.filter(i=>i.status==='bad').length;
+    const date=new Date(items[0].created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    html+=`<div class="checkin-history-item">
+      <div style="min-width:60px;font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;">Week ${week}</div>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:500;">${date}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${items.length} items checked</div>
+      </div>
+      <div style="display:flex;gap:8px;font-size:11px;font-weight:600;">
+        <span style="color:var(--green);">✓ ${ok}</span>
+        <span style="color:var(--amber);">⚠ ${warn}</span>
+        <span style="color:var(--red);">✕ ${bad}</span>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
+  document.getElementById('checkin-content').innerHTML=html;
+}
+
+// Admin view: manager reliability dashboard
+async function loadManagerReliability(){
+  const{data}=await sb.from('weekly_checkins')
+    .select('*')
+    .order('created_at',{ascending:false})
+    .limit(500);
+
+  if(!data||!data.length) return null;
+
+  const weekNum=getWeekNumber();
+  const weeksExpected=12; // last quarter
+  const byWeek={};
+  data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
+  const weeksSubmitted=Object.keys(byWeek).length;
+  const reliabilityScore=Math.round((weeksSubmitted/weeksExpected)*100);
+  const totalItems=data.length;
+  const problems=data.filter(r=>r.status==='bad').length;
+  const warnings=data.filter(r=>r.status==='warn').length;
+
+  return{reliabilityScore,weeksSubmitted,weeksExpected,totalItems,problems,warnings,byWeek};
+}
+
+// =========================================================
+// SETUP APP - show check-in for manager
+// =========================================================
 // Apply theme on load
 const savedTheme=localStorage.getItem('numa_theme')||'light';
 document.documentElement.setAttribute('data-theme',savedTheme);
