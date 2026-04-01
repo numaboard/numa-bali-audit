@@ -30,6 +30,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .login-lang{display:flex;gap:6px;justify-content:center;margin-bottom:20px;}
 
 /* LOGIN */
+.login-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:14px;color:var(--text);font-family:'DM Sans',sans-serif;margin-bottom:0;transition:border-color .15s;}
+.login-input:focus{outline:none;border-color:var(--accent);}
+.login-input::placeholder{color:var(--text3);}
+.login-btn{width:100%;margin-top:20px;padding:13px;background:var(--accent);color:#0d0f14;border:none;border-radius:var(--radius-sm);font-size:14px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;}
+.login-btn:hover{background:#1db87a;}
+.login-btn:active{transform:scale(0.98);}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;}
+
 .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
 .login-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:400px;}
 .login-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
@@ -398,39 +406,13 @@ tbody td{padding:11px 14px;font-size:13px;vertical-align:middle;}
       <button class="lang-btn" id="ll-it" onclick="setLang('it')">IT</button>
       <button class="lang-btn" id="ll-id" onclick="setLang('id')">ID</button>
     </div>
-    <div class="login-label" id="lbl-select-role">Select your role</div>
-    <select class="login-select" id="role-select" onchange="onRoleChange()">
-      <option value="">— Choose role —</option>
-      <option value="admin">👑 Admin — Giorgio</option>
-      <option value="manager">🏝 Manager — Bali Operations</option>
-      <option value="area_housekeeping">🏡 Housekeeping</option>
-      <option value="area_restaurant">🍽 Restaurant</option>
-      <option value="area_spa">💆 Spa</option>
-      <option value="area_security">🅿️ Security / Parking</option>
-      <option value="area_laundry">🧺 Laundry</option>
-      <option value="area_lobby">🏛 Lobby &amp; Reception</option>
-      <option value="investor">📊 Investor — Read Only</option>
-    </select>
-    <div class="login-label" id="lbl-enter-pin">Enter PIN</div>
-    <div class="pin-row" id="pin-display">
-      <div class="pin-dot" id="pd0">—</div>
-      <div class="pin-dot" id="pd1">—</div>
-      <div class="pin-dot" id="pd2">—</div>
-      <div class="pin-dot" id="pd3">—</div>
-    </div>
-    <div class="numpad" id="numpad">
-      <button class="num-btn" onclick="pinPress('1')">1</button>
-      <button class="num-btn" onclick="pinPress('2')">2</button>
-      <button class="num-btn" onclick="pinPress('3')">3</button>
-      <button class="num-btn" onclick="pinPress('4')">4</button>
-      <button class="num-btn" onclick="pinPress('5')">5</button>
-      <button class="num-btn" onclick="pinPress('6')">6</button>
-      <button class="num-btn" onclick="pinPress('7')">7</button>
-      <button class="num-btn" onclick="pinPress('8')">8</button>
-      <button class="num-btn" onclick="pinPress('9')">9</button>
-      <button class="num-btn" onclick="pinPress('0')" style="grid-column:2">0</button>
-      <button class="num-btn del" onclick="pinDel()">⌫</button>
-    </div>
+    <div class="login-label" id="lbl-email">Email</div>
+    <input class="login-input" type="email" id="login-email" placeholder="your@email.com" autocomplete="email">
+    <div class="login-label" id="lbl-password" style="margin-top:14px;">Password</div>
+    <input class="login-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()" id="login-btn">
+      <span id="login-btn-text">Sign in</span>
+    </button>
     <div class="login-error" id="login-error"></div>
   </div>
 </div>
@@ -673,7 +655,8 @@ var LANG = localStorage.getItem('numa_lang') || 'en';
 
 var I18N = {
   en:{
-    selectRole:'Select your role',enterPin:'Enter PIN',
+    selectRole:'Select your role',
+    emailLabel:'Email',enterPin:'Enter PIN',
     wrongPin:'Wrong PIN — try again',selectRoleFirst:'Please select a role first',
     dashboard:'Dashboard',startAudit:'Start Audit',redFlags:'Red Flags',
     history:'Audit History',settings:'Settings',logout:'Logout',
@@ -733,7 +716,7 @@ var I18N = {
     passed:'PASSED',borderline:'BORDERLINE',failedStatus:'FAILED',pending:'PENDING',
   },
   it:{
-    selectRole:'Seleziona il tuo ruolo',enterPin:'Inserisci il PIN',
+    selectRole:'Seleziona il tuo ruolo',emailLabel:'Email',passwordLabel:'Password',signIn:'Accedi',enterPin:'Inserisci il PIN',
     wrongPin:'PIN errato — riprova',selectRoleFirst:'Seleziona prima un ruolo',
     dashboard:'Dashboard',startAudit:'Inizia Audit',redFlags:'Problemi Critici',
     history:'Storico Audit',settings:'Impostazioni',logout:'Esci',
@@ -793,7 +776,7 @@ var I18N = {
     passed:'SUPERATO',borderline:'BORDERLINE',failedStatus:'INSUFFICIENTE',pending:'IN ATTESA',
   },
   id:{
-    selectRole:'Pilih peran Anda',enterPin:'Masukkan PIN',
+    selectRole:'Pilih peran Anda',emailLabel:'Email',passwordLabel:'Kata sandi',signIn:'Masuk',enterPin:'Masukkan PIN',
     wrongPin:'PIN salah — coba lagi',selectRoleFirst:'Silakan pilih peran terlebih dahulu',
     dashboard:'Dasbor',startAudit:'Mulai Audit',redFlags:'Masalah Kritis',
     history:'Riwayat Audit',settings:'Pengaturan',logout:'Keluar',
@@ -1029,8 +1012,9 @@ function setLang(lang){
 function applyI18n(){
   // Login labels
   const el=(id,key)=>{const e=document.getElementById(id);if(e)e.textContent=tr(key);};
-  el('lbl-select-role','selectRole');
-  el('lbl-enter-pin','enterPin');
+  el('lbl-email','emailLabel');
+  el('lbl-password','passwordLabel');
+  el('login-btn-text','signIn');
 
   // All elements with data-i18n attribute
   document.querySelectorAll('[data-i18n]').forEach(e=>{
@@ -1140,80 +1124,93 @@ function loadPins(){
 function savePins(){localStorage.setItem('numa_pins',JSON.stringify(PINS));}
 
 // =========================================================
-// LOGIN STATE
+// AUTH STATE
 // =========================================================
 var currentRole=null;
-var currentPin='';
 var auditActive=false;
 var selectedAreas=null;
+var currentUser=null;
 
-function onRoleChange(){
-  currentPin='';
-  updatePinDisplay();
-  document.getElementById('login-error').textContent='';
-}
-
-function pinPress(d){
-  if(!document.getElementById('role-select').value){
-    document.getElementById('login-error').textContent=tr('selectRoleFirst');
-    return;
-  }
-  if(currentPin.length>=4) return;
-  currentPin+=d;
-  updatePinDisplay();
-  if(currentPin.length===4) setTimeout(tryLogin,120);
-}
-
-function pinDel(){
-  currentPin=currentPin.slice(0,-1);
-  updatePinDisplay();
-  document.getElementById('login-error').textContent='';
-}
-
-function updatePinDisplay(){
-  for(let i=0;i<4;i++){
-    const el=document.getElementById('pd'+i);
-    el.textContent=i<currentPin.length?'●':'—';
-    el.className='pin-dot'+(i<currentPin.length?' filled':'');
-  }
-}
-
-function tryLogin(){
-  const role=document.getElementById('role-select').value;
-  if(!role){document.getElementById('login-error').textContent=tr('selectRoleFirst');return;}
-  if(currentPin===PINS[role]){
-    currentRole=role;
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const password=document.getElementById('login-password').value;
+  const btn=document.getElementById('login-btn');
+  const errEl=document.getElementById('login-error');
+  
+  if(!email||!password){errEl.textContent='Enter email and password';return;}
+  
+  btn.disabled=true;
+  document.getElementById('login-btn-text').textContent='Signing in...';
+  errEl.textContent='';
+  
+  try{
+    // Sign in with Supabase Auth
+    const {data,error}=await sb.auth.signInWithPassword({email,password});
+    if(error) throw error;
+    
+    currentUser=data.user;
+    
+    // Get role from user_roles table
+    const {data:roleData,error:roleErr}=await sb.from('user_roles').select('role').eq('id',data.user.id).single();
+    
+    if(roleErr||!roleData){
+      // Default role based on email if not in table
+      if(email.includes('manager')) currentRole='manager';
+      else if(email.includes('investor')) currentRole='investor';
+      else currentRole='admin';
+    } else {
+      currentRole=roleData.role;
+    }
+    
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-shell').classList.add('visible');
     setupAppForRole();
     initApp();
-  } else {
-    document.getElementById('login-error').textContent=tr('wrongPin');
-    for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.add('error');
-    setTimeout(()=>{
-      currentPin='';
-      updatePinDisplay();
-      for(let i=0;i<4;i++){const el=document.getElementById('pd'+i);el.classList.remove('error');el.textContent='—';}
-    },700);
+    
+  }catch(e){
+    errEl.textContent=e.message||'Login failed — check email and password';
+    btn.disabled=false;
+    document.getElementById('login-btn-text').textContent='Sign in';
   }
 }
 
-function doLogout(){
-  currentRole=null; currentPin=''; auditActive=false;
+async function doLogout(){
+  await sb.auth.signOut();
+  currentRole=null; currentUser=null; auditActive=false;
   document.getElementById('app-shell').classList.remove('visible');
   document.getElementById('login-screen').style.display='flex';
-  document.getElementById('role-select').value='';
-  updatePinDisplay();
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+  document.getElementById('login-error').textContent='';
+  document.getElementById('login-btn').disabled=false;
+  document.getElementById('login-btn-text').textContent='Sign in';
+}
+
+// Check existing session on load
+async function checkExistingSession(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session){
+    currentUser=session.user;
+    const {data:roleData}=await sb.from('user_roles').select('role').eq('id',session.user.id).single();
+    currentRole=roleData?.role||'investor';
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('app-shell').classList.add('visible');
+    setupAppForRole();
+    initApp();
+  }
 }
 
 function setupAppForRole(){
   const rd=ROLE_DEFS[currentRole];
   // avatar
   const av=document.getElementById('sb-avatar');
-  av.textContent=rd.avatar; av.style.background=rd.bg; av.style.color=rd.color;
-  document.getElementById('sb-user-name').textContent=rd.label;
-  document.getElementById('sb-user-role').textContent=currentRole.startsWith('area_')?'Area Responsible':
-    currentRole==='investor'?'Read-only access':'Full access';
+  const email=currentUser?.email||'';
+  const initials=email.substring(0,2).toUpperCase()||rd.avatar;
+  av.textContent=initials; av.style.background=rd.bg; av.style.color=rd.color;
+  document.getElementById('sb-user-name').textContent=email||rd.label;
+  document.getElementById('sb-user-role').textContent=currentRole==='admin'?'Admin — Full access':
+    currentRole==='manager'?'Manager — Full access':
+    currentRole==='investor'?'Investor — Read only':'Area Responsible';
   // history visibility
   document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
   // export/tg buttons
@@ -2422,6 +2419,7 @@ function initApp(){
 }
 
 loadPins();
+checkExistingSession();
 
 // =========================================================
 // MOBILE HELPERS
