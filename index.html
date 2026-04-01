@@ -1599,8 +1599,10 @@ function setupApp(){
   // PDF and Telegram report only for admin
   document.getElementById('btn-export').style.display=currentRole==='admin'?'':'none';
   document.getElementById('btn-tg').style.display=currentRole==='admin'?'':'none';
-  // Show check-in for manager
+  // Show manager section in sidebar
   const isManager=currentRole==='manager';
+  const managerSection=document.getElementById('sb-section-manager');
+  if(managerSection) managerSection.style.display=(isManager||currentRole==='admin')?'block':'none';
   const checkinSb=document.getElementById('sbitem-checkin');
   if(checkinSb) checkinSb.style.display=isManager?'flex':'none';
   const checkinMnav=document.getElementById('mnav-checkin');
@@ -1925,6 +1927,7 @@ function doStartAudit(areaKeys){
   buildAreaPages();
   buildDashboard();
   buildSidebar();
+  updateAuditBanner();
   buildFlags();
   showToast(tr('startAudit'));
   nav('dashboard',document.getElementById('sbitem-dashboard'));
@@ -2037,6 +2040,35 @@ function changeScore(key,idx,delta){
     if(el){el.style.display='inline';setTimeout(()=>el.style.display='none',1500);}
   },800);
 }
+
+function discardAudit(){
+  showModal('Discard Audit','All current scores will be lost. This cannot be undone.',()=>{
+    // Reset all scores
+    Object.keys(AREAS).forEach(k=>AREAS[k].items.forEach(item=>{item.score=0;item.notes='';}));
+    auditActive=false;
+    selectedAreas=null;
+    // Hide active audit banner
+    const banner=document.getElementById('sb-active-audit');
+    if(banner) banner.style.display='none';
+    buildDashboard();
+    buildFlags();
+    nav('dashboard',document.getElementById('sbitem-dashboard'));
+    showToast('Audit discarded');
+  },'Discard',true);
+}
+
+function updateAuditBanner(){
+  const banner=document.getElementById('sb-active-audit');
+  if(!banner) return;
+  banner.style.display=auditActive?'block':'none';
+  // Hide start audit item text when active
+  const startItem=document.getElementById('sbitem-start');
+  if(startItem){
+    const span=startItem.querySelector('span');
+    if(span) span.textContent=auditActive?tr('newAudit'):tr('startAudit');
+  }
+}
+
 
 function autoUpdateKPIs(){
   const g=calcGlobal();
@@ -2210,6 +2242,8 @@ async function saveCurrentSession(){
   if(id){
     showToast(tr('sessionSaved'));
     auditActive=false;
+    selectedAreas=null;
+    updateAuditBanner();
     buildDashboard();
     sendTelegramReport();
   }
