@@ -2884,48 +2884,45 @@ async function loadManagerReliability(){
 // =========================================================
 async function buildManagerReports(){
   const el=document.getElementById('manager-reports-content');
-  el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Loading manager check-in preview...</div>`;
+  el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
-  const{data,error}=await sb.from('weekly_checkins')
-    .select('*')
-    .order('created_at',{ascending:false})
-    .limit(600);
+  // Fetch only this manager's data (or all if admin)
+  let query=sb.from('weekly_checkins').select('*').order('created_at',{ascending:false}).limit(600);
+  if(currentRole==='manager') query=query.eq('manager_id',currentUser.id);
 
+  const{data,error}=await query;
   if(error||!data||!data.length){
-    el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No check-in data yet. Manager needs to complete at least one weekly check-in.</p></div>';
+    el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No check-in data yet.</p></div>';
     return;
   }
 
-  // Calculate reliability
-  const weekNum=getWeekNumber();
-  const weeks=[...new Set(data.map(r=>r.week_number))].sort((a,b)=>b-a);
-  const weeksExpected=Math.min(12,weekNum);
-  const reliabilityPct=Math.round((weeks.length/weeksExpected)*100);
+  // ── Reliability: count from first submission week ──
+  const weeks=[...new Set(data.map(r=>r.week_number))].sort((a,b)=>a-b);
+  const firstWeek=weeks[0];
+  const currentWeek=getWeekNumber();
+  const weeksSinceStart=Math.max(1, currentWeek - firstWeek + 1);
+  const reliabilityPct=Math.round((weeks.length / weeksSinceStart)*100);
   const relColor=reliabilityPct>=80?'var(--green)':reliabilityPct>=60?'var(--amber)':'var(--red)';
 
-  // Overall stats
   const totalChecks=data.length;
   const problems=data.filter(r=>r.status==='bad');
   const warnings=data.filter(r=>r.status==='warn');
 
-  // Most problematic items
-  const problemItems={};
+  // ── Top recurring problems ──
+  const problemMap={};
   problems.forEach(r=>{
-    if(!problemItems[r.item_id]) problemItems[r.item_id]={count:0,area:r.area_key,notes:[]};
-    problemItems[r.item_id].count++;
-    if(r.note) problemItems[r.item_id].notes.push(r.note);
+    if(!problemMap[r.item_id]) problemMap[r.item_id]={count:0,area:r.area_key,notes:[]};
+    problemMap[r.item_id].count++;
+    if(r.note) problemMap[r.item_id].notes.push(r.note);
   });
-  const topProblems=Object.entries(problemItems)
-    .sort((a,b)=>b[1].count-a[1].count)
-    .slice(0,10);
+  const topProblems=Object.entries(problemMap).sort((a,b)=>b[1].count-a[1].count).slice(0,10);
 
   let html=`
-  <!-- Reliability Score -->
   <div class="kpi-grid" style="margin-bottom:20px;">
     <div class="kpi-card">
       <div class="kpi-label">Reliability Score</div>
       <div class="kpi-value" style="color:${relColor};">${reliabilityPct}%</div>
-      <div class="kpi-sub">${weeks.length}/${weeksExpected} weeks submitted</div>
+      <div class="kpi-sub">${weeks.length}/${weeksSinceStart} weeks since start</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Total Checks</div>
@@ -2935,40 +2932,37 @@ async function buildManagerReports(){
     <div class="kpi-card">
       <div class="kpi-label">Problems Found</div>
       <div class="kpi-value r">${problems.length}</div>
-      <div class="kpi-sub">${Math.round(problems.length/totalChecks*100)}% of checks</div>
+      <div class="kpi-sub">${totalChecks>0?Math.round(problems.length/totalChecks*100):0}% of checks</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Warnings</div>
       <div class="kpi-value a">${warnings.length}</div>
-      <div class="kpi-sub">${Math.round(warnings.length/totalChecks*100)}% of checks</div>
+      <div class="kpi-sub">${totalChecks>0?Math.round(warnings.length/totalChecks*100):0}% of checks</div>
     </div>
   </div>`;
 
-  // Top recurring problems
+  // ── Recurring problems ──
   if(topProblems.length){
     html+=`<div class="table-wrap" style="margin-bottom:20px;">
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Recurring Problems</div>
       <table><thead><tr><th>Item</th><th>Area</th><th>Times flagged</th><th>Latest note</th></tr></thead><tbody>`;
     topProblems.forEach(([itemId,info])=>{
-      const itemName=trItem(itemId,itemId);
-      const areaName=trArea(info.area);
-      const latestNote=info.notes[0]||'—';
       html+=`<tr>
-        <td style="font-weight:500;">${itemName}</td>
-        <td style="font-size:11px;color:var(--text2);">${areaName}</td>
+        <td style="font-weight:500;">${trItem(itemId,itemId)}</td>
+        <td style="font-size:11px;color:var(--text2);">${trArea(info.area)}</td>
         <td><span style="font-weight:600;color:var(--red);">${info.count}×</span></td>
-        <td style="font-size:11px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${latestNote}</td>
+        <td style="font-size:11px;color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${info.notes[0]||'—'}</td>
       </tr>`;
     });
     html+=`</tbody></table></div>`;
   }
 
-  // Week by week history
-  html+=`<div class="table-wrap">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</div>`;
-
+  // ── Weekly history ──
   const byWeek={};
   data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
+
+  html+=`<div class="table-wrap" style="margin-bottom:20px;">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</div>`;
 
   Object.keys(byWeek).sort((a,b)=>b-a).forEach(week=>{
     const items=byWeek[week];
@@ -2978,12 +2972,9 @@ async function buildManagerReports(){
     const date=new Date(items[0].created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
     const pctOk=Math.round(ok/items.length*100);
     const barColor=pctOk>=80?'var(--green)':pctOk>=60?'var(--amber)':'var(--red)';
-    
-    // Get problem notes for this week
     const weekProblems=items.filter(i=>i.status==='bad'||i.status==='warn');
-    
     html+=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:${weekProblems.length?'8':'0'}px;">
         <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:60px;">Week ${week}</div>
         <div style="font-size:12px;font-weight:500;">${date}</div>
         <div style="flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;">
@@ -2996,43 +2987,59 @@ async function buildManagerReports(){
         </div>
       </div>
       ${weekProblems.length?`<div style="display:flex;flex-direction:column;gap:4px;">
-        ${weekProblems.map(p=>`<div style="display:flex;gap:8px;font-size:11px;padding:4px 8px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:4px;">
-          <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:600;">${p.status==='bad'?'✕':'⚠'}</span>
+        ${weekProblems.map(p=>`<div style="display:flex;gap:8px;font-size:11px;padding:5px 8px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:4px;align-items:flex-start;">
+          <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:600;flex-shrink:0;">${p.status==='bad'?'✕':'⚠'}</span>
           <span style="flex:1;">${trItem(p.item_id,p.item_id)} <span style="color:var(--text3);">· ${trArea(p.area_key)}</span></span>
-          ${p.note?`<span style="color:var(--text2);font-style:italic;">${p.note}</span>`:''}
+          ${p.note?`<span style="color:var(--text2);font-style:italic;font-size:10px;">"${p.note}"</span>`:''}
         </div>`).join('')}
       </div>`:''}
     </div>`;
   });
+  html+=`</div>`;
 
-  // Item coverage table - how many times each of 116 items was checked
+  // ── Item Coverage — count unique items checked, not total rows ──
   const allItems=getAllItems();
+  
+  // Get unique item_ids checked (deduplicated per item)
   const itemCoverage={};
   data.forEach(r=>{
     if(!itemCoverage[r.item_id]) itemCoverage[r.item_id]={ok:0,warn:0,bad:0,total:0,area:r.area_key};
-    itemCoverage[r.item_id][r.status]++;
+    itemCoverage[r.item_id][r.status]=(itemCoverage[r.item_id][r.status]||0)+1;
     itemCoverage[r.item_id].total++;
   });
 
+  const checkedCount=Object.keys(itemCoverage).length; // unique items checked
   const neverChecked=allItems.filter(i=>!itemCoverage[i.id]);
-  const checkedItems=allItems.filter(i=>itemCoverage[i.id]);
+  const coveragePct=Math.round(checkedCount/allItems.length*100);
 
-  html+=`<div class="table-wrap" style="margin-top:20px;">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-      <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Item Coverage — ${checkedItems.length}/${allItems.length} items checked at least once</span>
-      <div style="display:flex;gap:8px;">
-        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--green-bg);color:var(--green);">${checkedItems.length} checked</span>
+  // ── Area filter for coverage table ──
+  const areaKeys=['all',...Object.keys(AREAS)];
+  html+=`<div class="table-wrap">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">
+        Item Coverage — ${checkedCount}/${allItems.length} unique items checked
+      </span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--green-bg);color:var(--green);">${checkedCount} checked</span>
         <span style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--red-bg);color:var(--red);">${neverChecked.length} never</span>
       </div>
     </div>
     <div style="padding:10px 16px;border-bottom:1px solid var(--border);">
-      <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
-        <div style="width:${Math.round(checkedItems.length/allItems.length*100)}%;height:100%;background:var(--green);border-radius:3px;transition:width .4s;"></div>
+      <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:5px;">
+        <div style="width:${coveragePct}%;height:100%;background:${coveragePct>=80?'var(--green)':coveragePct>=50?'var(--amber)':'var(--red)'};border-radius:3px;transition:width .4s;"></div>
       </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:5px;">${Math.round(checkedItems.length/allItems.length*100)}% coverage</div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);">
+        <span>${coveragePct}% coverage</span>
+        <span>Goal: 100% every 4 weeks</span>
+      </div>
+    </div>
+    <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;flex-wrap:wrap;">
+      <button class="filter-btn active" id="cov-filter-all" onclick="filterCoverage('all')">All</button>
+      ${Object.keys(AREAS).map(k=>`<button class="filter-btn" id="cov-filter-${k}" onclick="filterCoverage('${k}')">${AREAS[k].icon} ${trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ','')}</button>`).join('')}
+      <button class="filter-btn" id="cov-filter-never" onclick="filterCoverage('never')" style="color:var(--red);">Never checked</button>
     </div>
     <div style="overflow-x:auto;">
-    <table>
+    <table id="coverage-table">
       <thead><tr>
         <th>Item</th><th>Area</th>
         <th style="color:var(--green);">✓ OK</th>
@@ -3043,20 +3050,13 @@ async function buildManagerReports(){
       <tbody>
         ${allItems.map(item=>{
           const cov=itemCoverage[item.id];
-          if(!cov) return `<tr style="opacity:.4;">
-            <td style="font-size:11px;">${trItem(item.id,item.item)}</td>
+          return `<tr data-area="${item.areaKey}" data-checked="${cov?'yes':'no'}">
+            <td style="font-size:11px;font-weight:${cov?.bad>0?'600':'400'};color:${cov?.bad>0?'var(--red)':'inherit'};">${trItem(item.id,item.item)}</td>
             <td style="font-size:10px;color:var(--text3);">${item.areaIcon} ${trArea(item.areaKey)}</td>
-            <td>—</td><td>—</td><td>—</td>
-            <td style="font-size:10px;color:var(--text3);">Never</td>
-          </tr>`;
-          const barW=Math.round((cov.bad/Math.max(cov.total,1))*100);
-          return `<tr>
-            <td style="font-size:11px;font-weight:${cov.bad>0?'600':'400'};color:${cov.bad>0?'var(--red)':'inherit'};">${trItem(item.id,item.item)}</td>
-            <td style="font-size:10px;color:var(--text3);">${item.areaIcon} ${trArea(item.areaKey)}</td>
-            <td style="color:var(--green);font-weight:600;">${cov.ok||'—'}</td>
-            <td style="color:var(--amber);font-weight:600;">${cov.warn||'—'}</td>
-            <td style="color:var(--red);font-weight:600;">${cov.bad||'—'}</td>
-            <td style="font-size:11px;color:var(--text3);">${cov.total}</td>
+            <td style="color:var(--green);font-weight:600;">${cov?.ok||'—'}</td>
+            <td style="color:var(--amber);font-weight:600;">${cov?.warn||'—'}</td>
+            <td style="color:var(--red);font-weight:600;">${cov?.bad||'—'}</td>
+            <td style="font-size:11px;color:${cov?'var(--text)':'var(--text3)'};">${cov?cov.total:'<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:var(--red-bg);color:var(--red);">Never</span>'}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -3067,76 +3067,18 @@ async function buildManagerReports(){
   el.innerHTML=html;
 }
 
-
-// =========================================================
-// ADMIN: PREVIEW MANAGER CHECK-IN
-// =========================================================
-async function previewManagerCheckin(){
-  const el=document.getElementById('manager-preview-content');
-  el.innerHTML=`<div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Loading manager check-in preview...</div>`;
-
-  // Get the same items the manager would see this week
-  // Temporarily simulate manager role for item calculation
-  const savedRole=currentRole;
-  currentRole='manager';
-  const items=await getWeeklyItems();
-  currentRole=savedRole;
-
-  const weekNum=getWeekNumber();
-  const now=new Date();
-  const weekStr=`Week ${weekNum} — ${now.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}`;
-
-  // Check if manager already submitted this week
-  // (we check all users' submissions for this week)
-  const{data:existing}=await sb.from('weekly_checkins')
-    .select('manager_id,status,item_id,note,created_at')
-    .eq('week_number',weekNum)
-    .limit(200);
-
-  const submitted=existing&&existing.length>0;
-
-  let html=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-      <div style="font-size:12px;font-weight:600;">Manager's Check-in — ${weekStr}</div>
-      <div style="font-size:10px;padding:2px 8px;border-radius:20px;background:${submitted?'var(--green-bg)':'var(--amber-bg)'};color:${submitted?'var(--green)':'var(--amber)'};">
-        ${submitted?'✓ Submitted this week':'⏳ Not yet submitted'}
-      </div>
-    </div>
-    <div style="padding:12px 16px;">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">${items.length} items assigned this week (out of 116 total)</div>`;
-
-  // Group items by area for preview
-  const byArea={};
-  items.forEach(item=>{
-    if(!byArea[item.areaKey]) byArea[item.areaKey]={name:trArea(item.areaKey),icon:AREAS[item.areaKey].icon,items:[]};
-    byArea[item.areaKey].items.push(item);
+function filterCoverage(filter){
+  document.querySelectorAll('[id^="cov-filter-"]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('cov-filter-'+filter);
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('#coverage-table tbody tr').forEach(tr=>{
+    const area=tr.getAttribute('data-area');
+    const checked=tr.getAttribute('data-checked');
+    let show=true;
+    if(filter==='never') show=checked==='no';
+    else if(filter!=='all') show=area===filter;
+    tr.style.display=show?'':'none';
   });
-
-  // Build submitted responses map if available
-  const respMap={};
-  (existing||[]).forEach(r=>{respMap[r.item_id]={status:r.status,note:r.note};});
-
-  Object.keys(byArea).forEach(k=>{
-    const area=byArea[k];
-    html+=`<div style="margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:6px;">${area.icon} ${area.name} (${area.items.length} items)</div>
-      <div style="display:flex;flex-direction:column;gap:4px;">`;
-    area.items.forEach(item=>{
-      const resp=respMap[item.id];
-      const statusColor=resp?.status==='ok'?'var(--green)':resp?.status==='warn'?'var(--amber)':resp?.status==='bad'?'var(--red)':'var(--text3)';
-      const statusIcon=resp?.status==='ok'?'✓':resp?.status==='warn'?'⚠':resp?.status==='bad'?'✕':'○';
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px;">
-        <span style="color:${statusColor};font-weight:600;min-width:14px;">${statusIcon}</span>
-        <span style="flex:1;">${trItem(item.id,item.item)}</span>
-        ${item.level==='Critical'?'<span style="font-size:9px;color:var(--red);font-weight:600;">Critical</span>':''}
-        ${resp?.note?`<span style="font-size:10px;color:var(--text2);font-style:italic;">📝 ${resp.note}</span>`:''}
-      </div>`;
-    });
-    html+=`</div></div>`;
-  });
-
-  html+=`</div></div>`;
-  el.innerHTML=html;
 }
 
 
