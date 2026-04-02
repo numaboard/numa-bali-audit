@@ -2833,48 +2833,73 @@ function getAllItems(){
   return all;
 }
 
-// Spaced repetition: prioritize items not seen recently or with problems
+// Spaced repetition: guaranteed monthly coverage + resurface warnings/problems on top
 async function getWeeklyItems(){
-  const allItems=getAllItems(); // ~100 items total
+  const allItems=getAllItems(); // 116 items
   const weekNum=getWeekNumber();
-  const monthNum=new Date().getMonth();
 
   // Load history of this manager's check-ins
   const{data:history}=await sb.from('weekly_checkins')
-    .select('item_id,status,week_number,created_at')
+    .select('item_id,area_key,status,week_number,created_at')
     .eq('manager_id',currentUser.id)
     .order('created_at',{ascending:false})
-    .limit(200);
+    .limit(400);
 
+  // Build history map using area_key+item_id as unique key
   const histMap={};
   (history||[]).forEach(h=>{
-    if(!histMap[h.item_id]) histMap[h.item_id]={lastWeek:h.week_number,lastStatus:h.status,count:0};
-    histMap[h.item_id].count++;
+    const key=h.area_key+':'+h.item_id;
+    if(!histMap[key]) histMap[key]={lastWeek:h.week_number,lastStatus:h.status,areaKey:h.area_key};
   });
 
-  // Scoring: higher = more urgent to show this week
-  const scored=allItems.map(item=>{
-    const h=histMap[item.id];
-    let score=0;
-    if(!h) score=100; // never seen → highest priority
-    else{
-      const weeksSince=weekNum-(h.lastWeek||0);
-      score+=weeksSince*10; // older = higher priority
-      if(h.lastStatus==='bad') score+=50; // problems get resurface faster
-      if(h.lastStatus==='warn') score+=20;
-      if(item.level==='Critical') score+=15; // critical items more frequent
-    }
-    return{...item,urgencyScore:score};
+  const WEEK_SIZE=Math.ceil(allItems.length/4); // 29 — base rotation
+
+  // Step 1: Find items that need resurfacing (warn/problem from recent weeks)
+  const resurface=allItems.filter(item=>{
+    const key=item.areaKey+':'+item.id;
+    const h=histMap[key];
+    if(!h) return false;
+    const weeksSince=weekNum-h.lastWeek;
+    // Resurface if: problem seen in last 2 weeks, or warn seen last week
+    return (h.lastStatus==='bad'&&weeksSince<=2)||(h.lastStatus==='warn'&&weeksSince<=1);
+  }).map(item=>({...item,urgencyScore:999,isResurface:true}));
+
+  // Step 2: Build rotation — items not seen this "month cycle"
+  // Month cycle = current 4-week block since week 1 of year
+  const cycleStart=weekNum-((weekNum-1)%4); // start of current 4-week cycle
+  const seenThisCycle=new Set(
+    (history||[])
+      .filter(h=>h.week_number>=cycleStart)
+      .map(h=>h.area_key+':'+h.item_id)
+  );
+
+  // Items not yet seen this cycle (guaranteed coverage)
+  const notSeenThisCycle=allItems.filter(item=>{
+    const key=item.areaKey+':'+item.id;
+    return !seenThisCycle.has(key) && !resurface.find(r=>r.areaKey===item.areaKey&&r.id===item.id);
   });
 
-  scored.sort((a,b)=>b.urgencyScore-a.urgencyScore);
+  // Sort not-seen by priority (never seen first, then oldest)
+  notSeenThisCycle.sort((a,b)=>{
+    const ha=histMap[a.areaKey+':'+a.id];
+    const hb=histMap[b.areaKey+':'+b.id];
+    if(!ha&&!hb) return 0;
+    if(!ha) return -1;
+    if(!hb) return 1;
+    return ha.lastWeek-hb.lastWeek; // oldest first
+  });
 
-  // 116 total items, 4 weeks per month = 29 items per week
-  // All items covered in a month
-  const TOTAL_ITEMS=getAllItems().length;
-  const WEEKS_PER_MONTH=4;
-  const weekSize=Math.ceil(TOTAL_ITEMS/WEEKS_PER_MONTH); // 29
-  return scored.slice(0,weekSize);
+  // Step 3: Take WEEK_SIZE from rotation + add resurface items on top
+  const rotation=notSeenThisCycle.slice(0,WEEK_SIZE);
+  
+  // Combine: resurface first, then rotation (deduped)
+  const resurfaceKeys=new Set(resurface.map(r=>r.areaKey+':'+r.id));
+  const finalList=[
+    ...resurface,
+    ...rotation.filter(r=>!resurfaceKeys.has(r.areaKey+':'+r.id))
+  ];
+
+  return finalList;
 }
 
 function getWeekNumber(){
