@@ -1613,8 +1613,9 @@ async function doLogin(){
     currentUser=data.user;
     const{data:rd}=await sb.from('user_roles').select('role').eq('id',data.user.id).single();
     currentRole=rd?.role||'investor';
-    // Load permissions from DB before setup
-    await loadManagerPermsFromDB();
+    // Load permissions from DB before setup — always fresh
+    const freshPerms=await loadManagerPermsFromDB();
+    if(freshPerms) localStorage.setItem('manager_perms',JSON.stringify(freshPerms));
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-shell').style.display='flex';
     setupApp();
@@ -1644,7 +1645,9 @@ async function checkSession(){
     currentUser=session.user;
     const{data:rd}=await sb.from('user_roles').select('role').eq('id',session.user.id).single();
     currentRole=rd?.role||'investor';
-    await loadManagerPermsFromDB();
+    // Load perms from DB BEFORE setupApp so manager sees correct sections
+    const freshPerms=await loadManagerPermsFromDB();
+    if(freshPerms) localStorage.setItem('manager_perms',JSON.stringify(freshPerms));
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-shell').style.display='flex';
     setupApp();
@@ -3387,13 +3390,14 @@ function getManagerPerms(){
 
 async function loadManagerPermsFromDB(){
   try{
-    const{data}=await sb.from('app_settings').select('value').eq('key','manager_perms').single();
-    if(data?.value){
-      localStorage.setItem('manager_perms',data.value);
-      return JSON.parse(data.value);
+    const{data,error}=await sb.from('app_settings').select('value').eq('key','manager_perms').single();
+    if(!error && data?.value){
+      const parsed=JSON.parse(data.value);
+      localStorage.setItem('manager_perms',JSON.stringify(parsed));
+      return parsed;
     }
   }catch(e){}
-  return getManagerPerms();
+  return null; // return null if not found so caller can decide
 }
 
 
