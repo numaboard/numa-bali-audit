@@ -569,6 +569,11 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
           </div>
         </div>
         <div class="areas-grid" id="areas-grid"></div>
+        <!-- Team Rankings -->
+        <div id="team-rankings-section" style="margin-top:4px;">
+          <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Team Performance Ranking</div>
+          <div id="team-rankings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;"></div>
+        </div>
       </div>
 
       <!-- START AUDIT -->
@@ -605,7 +610,8 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
           </div>
           <div class="btn-row">
             <span id="checkin-progress-badge" style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;"></span>
-            <button class="btn btn-primary" onclick="submitCheckin()" id="checkin-submit-btn">Submit</button>
+            <button class="btn btn-ghost" onclick="showSuggestItemModal()" style="font-size:11px;">+ Suggest item</button>
+          <button class="btn btn-primary" onclick="submitCheckin()" id="checkin-submit-btn">Submit</button>
           </div>
         </div>
         <div id="checkin-content"></div>
@@ -1454,6 +1460,20 @@ var AREAS={
 };
 
 // =========================================================
+// TEAM DEFINITIONS
+// =========================================================
+var TEAMS = {
+  rooms_ayu:      {name:'Housekeeping Ayu',    emoji:'🏡', members:'Housekeeping Team'},
+  rooms_lestari:  {name:'Housekeeping Lestari', emoji:'🌿', members:'Housekeeping Team'},
+  rooms_santai:   {name:'Housekeeping Santai',  emoji:'🌴', members:'Housekeeping Team'},
+  restaurant:     {name:'F&B Service',          emoji:'🍽️', members:'F&B Team'},
+  spa:            {name:'Wellness Therapists',   emoji:'💆', members:'Spa Team'},
+  parking:        {name:'Security & Valet',      emoji:'🅿️', members:'Security Team'},
+  laundry:        {name:'Laundry & Linen',       emoji:'🧺', members:'Laundry Team'},
+  lobby:          {name:'Front of House',        emoji:'🏛️', members:'Receptionist Team'},
+};
+
+// =========================================================
 // SCORING ENGINE
 // =========================================================
 // =========================================================
@@ -1816,6 +1836,7 @@ async function buildDashboard(){
     </div>`;
   });
   document.getElementById('areas-grid').innerHTML=ah;
+  buildTeamRankings(g);
 
   // Charts
   const labels=g.keys.map(k=>trArea(k).replace('Rooms — ','').replace('Camere — ','').replace('Kamar — ',''));
@@ -1942,10 +1963,12 @@ function confirmStartAudit(){
 
 function doStartAudit(areaKeys){
   selectedAreas=areaKeys;
+  // Reset only selected areas
   areaKeys.forEach(k=>AREAS[k].items.forEach(item=>{item.score=0;item.notes='';}));
   auditActive=true;
   buildAreaPages();
   buildDashboard();
+  // Rebuild sidebar showing only selected area keys
   buildSidebar();
   updateAuditBanner();
   buildFlags();
@@ -2104,6 +2127,100 @@ function updateAuditBanner(){
   }
 }
 
+
+function buildTeamRankings(g){
+  const el=document.getElementById('team-rankings-grid');
+  if(!el) return;
+  // Group areas by team family and calculate scores
+  const teamData=[];
+  const roomKeys=['rooms_ayu','rooms_lestari','rooms_santai'];
+  const roomScores=roomKeys.map(k=>{
+    const idx=g.keys.indexOf(k);
+    return idx>=0?g.scores[idx].avg:0;
+  }).filter(s=>s>0);
+  const roomAvg=roomScores.length?roomScores.reduce((a,b)=>a+b,0)/roomScores.length:0;
+  if(roomAvg>0) teamData.push({key:'rooms',name:'Housekeeping',emoji:'🏡',avg:roomAvg,members:'Cleaning Service Team'});
+
+  ['restaurant','spa','parking','laundry','lobby'].forEach(k=>{
+    const idx=g.keys.indexOf(k);
+    if(idx>=0&&g.scores[idx].avg>0){
+      const t=TEAMS[k];
+      teamData.push({key:k,name:t.name,emoji:t.emoji,avg:g.scores[idx].avg,members:t.members});
+    }
+  });
+
+  if(!teamData.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);grid-column:1/-1;">Complete an audit to see team rankings.</div>';return;}
+
+  teamData.sort((a,b)=>b.avg-a.avg);
+  const medals=['🥇','🥈','🥉'];
+
+  el.innerHTML=teamData.map((t,i)=>{
+    const color=t.avg>=4?'var(--green)':t.avg>=3?'var(--amber)':'var(--red)';
+    const bg=t.avg>=4?'var(--green-bg)':t.avg>=3?'var(--amber-bg)':'var(--red-bg)';
+    const pct=(t.avg/5*100).toFixed(0);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px;">
+      <div style="font-size:20px;min-width:28px;">${medals[i]||'·'}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:1px;">${t.emoji} ${t.members}</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">${t.name}</div>
+        <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;"></div>
+        </div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${color};">${t.avg.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+function buildTeamRankingsFromCheckins(data){
+  // Build team rankings from manager check-in data
+  const el=document.getElementById('manager-team-rankings');
+  if(!el) return;
+  const teamScores={};
+  data.forEach(r=>{
+    const key=r.area_key;
+    if(!teamScores[key]) teamScores[key]={ok:0,warn:0,bad:0,total:0};
+    teamScores[key][r.status]++;
+    teamScores[key].total++;
+  });
+  // Group rooms together
+  const teams=[];
+  const roomKeys=['rooms_ayu','rooms_lestari','rooms_santai'];
+  const roomData={ok:0,warn:0,bad:0,total:0};
+  roomKeys.forEach(k=>{if(teamScores[k]){Object.keys(roomData).forEach(s=>{roomData[s]+=teamScores[k][s]||0;});}});
+  if(roomData.total>0){
+    const score=(roomData.ok/roomData.total)*5;
+    teams.push({key:'rooms',name:'Housekeeping',emoji:'🏡',members:'Cleaning Service Team',score,data:roomData});
+  }
+  ['restaurant','spa','parking','laundry','lobby'].forEach(k=>{
+    if(teamScores[k]&&teamScores[k].total>0){
+      const d=teamScores[k];
+      const score=(d.ok/d.total)*5;
+      const t=TEAMS[k];
+      teams.push({key:k,name:t.name,emoji:t.emoji,members:t.members,score,data:d});
+    }
+  });
+  if(!teams.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);">Not enough data yet.</div>';return;}
+  teams.sort((a,b)=>b.score-a.score);
+  const medals=['🥇','🥈','🥉'];
+  el.innerHTML=`<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Team Performance — Based on Check-ins</div>`+
+  teams.map((t,i)=>{
+    const color=t.score>=4?'var(--green)':t.score>=3?'var(--amber)':'var(--red)';
+    const pct=(t.score/5*100).toFixed(0);
+    const issueRate=Math.round((t.data.bad/t.data.total)*100);
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow);">
+      <div style="font-size:20px;min-width:28px;">${medals[i]||`#${i+1}`}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${t.emoji} ${t.members}</div>
+        <div style="font-size:10px;color:var(--text3);margin:2px 0 6px;">${t.data.ok} OK · ${t.data.warn} warnings · ${t.data.bad} problems · ${issueRate}% issue rate</div>
+        <div style="height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;"></div>
+        </div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:${color};">${t.score.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
 
 function autoUpdateKPIs(){
   const g=calcGlobal();
@@ -2289,7 +2406,9 @@ async function saveCurrentSession(){
 // =========================================================
 function buildSidebar(){
   const rd=ROLE_DEFS[currentRole]||ROLE_DEFS.investor;
-  const visible=rd.areas||Object.keys(AREAS);
+  // Show only selected areas when audit is active
+  const allVisible=rd.areas||Object.keys(AREAS);
+  const visible=(auditActive&&selectedAreas)?selectedAreas.filter(k=>allVisible.includes(k)):allVisible;
   document.getElementById('sb-areas').innerHTML=visible.map(k=>{
     const a=AREAS[k];const r=calcArea(k);
     const sc=r.avg>0?r.avg.toFixed(1):'—';
@@ -2621,6 +2740,8 @@ function initApp(){
   if(window._defaultPage==='checkin') nav('checkin',document.getElementById('sbitem-checkin'));
   else buildDashboard();
   const an=document.getElementById('auditor-name');if(an) an.value=localStorage.getItem('auditor_name')||'';
+  loadCustomItems();
+  setupSettingsTabs();
   if(currentRole==='admin') loadPermissionsCard();
   applyI18n();
   // Supabase connection check
@@ -2760,6 +2881,14 @@ async function buildCheckinPage(){
         <button class="checkin-btn bad" onclick="setCheckin(${idx},'bad')">✕ Problem</button>
       </div>
       <input class="checkin-note" id="ci-note-${idx}" placeholder="Add note..." oninput="checkinResponses[${idx}]={...(checkinResponses[${idx}]||{}),note:this.value}">
+      <div class="checkin-note show" id="ci-photo-row-${idx}" style="display:none;padding:6px 0 0;background:transparent;border:none;">
+        <label style="font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="attachPhoto(${idx},this)">
+          <span style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:10px;">📷 Attach photo</span>
+          <span id="ci-photo-name-${idx}" style="font-size:10px;color:var(--text3);"></span>
+        </label>
+        <img id="ci-photo-preview-${idx}" style="display:none;width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-top:6px;">
+      </div>
     </div>`;
   });
 
@@ -2776,12 +2905,41 @@ function setCheckin(idx,status){
   // Show note field for problems/warnings
   const noteEl=document.getElementById('ci-note-'+idx);
   if(noteEl) noteEl.className='checkin-note'+(status!=='ok'?' show':'');
+  const photoRow=document.getElementById('ci-photo-row-'+idx);
+  if(photoRow) photoRow.style.display=status!=='ok'?'block':'none';
   // Update progress
   const done=Object.keys(checkinResponses).length;
   document.getElementById('checkin-progress-badge').textContent=done+'/'+checkinItems.length;
   const pct=Math.round(done/checkinItems.length*100);
   const prog=document.getElementById('ci-prog');
   if(prog) prog.style.width=pct+'%';
+}
+
+function attachPhoto(idx, input){
+  const file=input.files[0];
+  if(!file) return;
+  // Compress to max 800px and convert to base64
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const MAX=800;
+      let w=img.width,h=img.height;
+      if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const base64=canvas.toDataURL('image/jpeg',0.7);
+      checkinResponses[idx]={...(checkinResponses[idx]||{}),photo_base64:base64};
+      const preview=document.getElementById('ci-photo-preview-'+idx);
+      if(preview){preview.src=base64;preview.style.display='block';}
+      const nameEl=document.getElementById('ci-photo-name-'+idx);
+      if(nameEl) nameEl.textContent=file.name;
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 async function submitCheckin(){
@@ -2799,6 +2957,7 @@ async function submitCheckin(){
       area_key:item.areaKey,
       status:resp.status,
       note:resp.note||'',
+      photo_base64:resp.photo_base64||null,
       week_number:weekNum,
       urgency_score:item.urgencyScore||0
     };
@@ -2917,7 +3076,7 @@ async function buildManagerReports(){
   });
   const topProblems=Object.entries(problemMap).sort((a,b)=>b[1].count-a[1].count).slice(0,10);
 
-  let html=`
+  let html=`<div id="manager-team-rankings" style="margin-bottom:20px;"></div>
   <div class="kpi-grid" style="margin-bottom:20px;">
     <div class="kpi-card">
       <div class="kpi-label">Reliability Score</div>
@@ -2997,19 +3156,20 @@ async function buildManagerReports(){
   });
   html+=`</div>`;
 
-  // ── Item Coverage — count unique items checked, not total rows ──
+  // ── Item Coverage — use area_key+item_id as unique key ──
   const allItems=getAllItems();
   
-  // Get unique item_ids checked (deduplicated per item)
+  // Key = area_key+':'+item_id to handle duplicate item_ids across room types
   const itemCoverage={};
   data.forEach(r=>{
-    if(!itemCoverage[r.item_id]) itemCoverage[r.item_id]={ok:0,warn:0,bad:0,total:0,area:r.area_key};
-    itemCoverage[r.item_id][r.status]=(itemCoverage[r.item_id][r.status]||0)+1;
-    itemCoverage[r.item_id].total++;
+    const key=r.area_key+':'+r.item_id;
+    if(!itemCoverage[key]) itemCoverage[key]={ok:0,warn:0,bad:0,total:0,area:r.area_key,item_id:r.item_id};
+    itemCoverage[key][r.status]=(itemCoverage[key][r.status]||0)+1;
+    itemCoverage[key].total++;
   });
 
-  const checkedCount=Object.keys(itemCoverage).length; // unique items checked
-  const neverChecked=allItems.filter(i=>!itemCoverage[i.id]);
+  const checkedCount=Object.keys(itemCoverage).length; // unique area+item combos
+  const neverChecked=allItems.filter(i=>!itemCoverage[i.areaKey+':'+i.id]);
   const coveragePct=Math.round(checkedCount/allItems.length*100);
 
   // ── Area filter for coverage table ──
@@ -3049,9 +3209,13 @@ async function buildManagerReports(){
       </tr></thead>
       <tbody>
         ${allItems.map(item=>{
-          const cov=itemCoverage[item.id];
-          return `<tr data-area="${item.areaKey}" data-checked="${cov?'yes':'no'}">
-            <td style="font-size:11px;font-weight:${cov?.bad>0?'600':'400'};color:${cov?.bad>0?'var(--red)':'inherit'};">${trItem(item.id,item.item)}</td>
+          const cov=itemCoverage[item.areaKey+':'+item.id];
+          const hasNote=cov&&(cov.warn>0||cov.bad>0);
+          return `<tr data-area="${item.areaKey}" data-checked="${cov?'yes':'no'}" style="${hasNote?'cursor:pointer;':''}" ${hasNote?`onclick="showItemDetail('${item.areaKey}','${item.id}')"`:''}> 
+            <td style="font-size:11px;font-weight:${cov?.bad>0?'600':'400'};color:${cov?.bad>0?'var(--red)':'inherit'};">
+              ${trItem(item.id,item.item)}
+              ${hasNote?'<span style="font-size:9px;margin-left:5px;padding:1px 5px;border-radius:3px;background:var(--amber-bg);color:var(--amber);">note</span>':''}
+            </td>
             <td style="font-size:10px;color:var(--text3);">${item.areaIcon} ${trArea(item.areaKey)}</td>
             <td style="color:var(--green);font-weight:600;">${cov?.ok||'—'}</td>
             <td style="color:var(--amber);font-weight:600;">${cov?.warn||'—'}</td>
@@ -3065,6 +3229,50 @@ async function buildManagerReports(){
   </div>`;
 
   el.innerHTML=html;
+  buildTeamRankingsFromCheckins(data);
+}
+
+// ── Item detail modal with notes and photos ──
+var _allCheckinData=[];
+
+async function showItemDetail(areaKey, itemId){
+  // Get all check-ins for this item
+  let query=sb.from('weekly_checkins')
+    .select('*')
+    .eq('area_key',areaKey)
+    .eq('item_id',itemId)
+    .order('created_at',{ascending:false});
+  if(currentRole==='manager') query=query.eq('manager_id',currentUser.id);
+  const{data}=await query;
+  if(!data||!data.length) return;
+
+  const itemName=trItem(itemId,itemId);
+  const areaName=trArea(areaKey);
+
+  let html=`<div style="font-size:12px;font-weight:600;margin-bottom:14px;">${areaName} — ${itemName}</div>`;
+  html+=`<div style="display:flex;flex-direction:column;gap:8px;max-height:400px;overflow-y:auto;">`;
+
+  data.forEach(r=>{
+    const date=new Date(r.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const color=r.status==='bad'?'var(--red)':r.status==='warn'?'var(--amber)':'var(--green)';
+    const bg=r.status==='bad'?'var(--red-bg)':r.status==='warn'?'var(--amber-bg)':'var(--green-bg)';
+    const icon=r.status==='bad'?'✕':r.status==='warn'?'⚠':'✓';
+    html+=`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:${r.note||r.photo_base64?'6':'0'}px;">
+        <span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:3px;background:${bg};color:${color};">${icon} ${r.status.toUpperCase()}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto;">Week ${r.week_number} · ${date}</span>
+      </div>
+      ${r.note?`<div style="font-size:11px;color:var(--text2);font-style:italic;">"${r.note}"</div>`:''}
+      ${r.photo_base64?`<img src="${r.photo_base64}" style="width:100%;max-height:200px;object-fit:cover;border-radius:6px;margin-top:8px;" />`:''}
+    </div>`;
+  });
+  html+=`</div>`;
+
+  showModal(itemName, '', ()=>{}, 'Close', false);
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-btn').textContent='Close';
+  document.getElementById('modal-btn').onclick=closeModal;
+  document.getElementById('modal-btn').className='btn btn-primary';
 }
 
 function filterCoverage(filter){
@@ -3135,6 +3343,228 @@ function savePermissions(){
 
 function getManagerPerms(){
   return JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
+}
+
+
+// =========================================================
+// SETTINGS TABS
+// =========================================================
+function showSettingsTab(tab, btn){
+  ['general','permissions','items','suggestions'].forEach(t=>{
+    const el=document.getElementById('settings-tab-'+t);
+    if(el) el.style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('#settings-tabs .filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(tab==='permissions') loadPermissionsCard();
+  if(tab==='items') buildAuditItemsTab();
+  if(tab==='suggestions') loadSuggestions();
+}
+
+function setupSettingsTabs(){
+  const isAdmin=currentRole==='admin';
+  const tabPerms=document.getElementById('tab-permissions');
+  const tabItems=document.getElementById('tab-items');
+  const tabSugg=document.getElementById('tab-suggestions');
+  if(tabPerms) tabPerms.style.display=isAdmin?'':'none';
+  if(tabItems) tabItems.style.display=isAdmin?'':'none';
+  if(tabSugg) tabSugg.style.display=isAdmin?'':'none';
+  // Move permissions card content to tab
+  const permCard=document.getElementById('permissions-card');
+  if(permCard) permCard.style.display='none';
+}
+
+function buildAuditItemsTab(){
+  const el=document.getElementById('audit-items-content');
+  el.innerHTML='';
+  Object.keys(AREAS).forEach(areaKey=>{
+    const a=AREAS[areaKey];
+    const t=TEAMS[areaKey];
+    let html=`<div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:8px;">
+        <span style="font-size:16px;">${a.icon}</span>
+        <span style="font-size:13px;font-weight:600;">${trArea(areaKey)}</span>
+        <span style="font-size:10px;color:var(--text3);">${t?.members||''}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:auto;">${a.items.length} items</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;">`;
+    a.items.forEach((item,idx)=>{
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <span class="id-mono" style="min-width:40px;">${item.id}</span>
+        <span id="item-text-${areaKey}-${idx}" style="flex:1;font-size:12px;">${trItem(item.id,item.item)}</span>
+        <span class="level-tag ${item.level==='Critical'?'lc':item.level==='Moderate'?'lm':'ll'}">${item.level}</span>
+        <button onclick="editAuditItem('${areaKey}',${idx})" style="padding:3px 8px;background:transparent;border:1px solid var(--border);border-radius:4px;font-size:10px;cursor:pointer;color:var(--text2);">Edit</button>
+      </div>`;
+    });
+    html+=`</div></div>`;
+    el.innerHTML+=html;
+  });
+}
+
+function editAuditItem(areaKey, idx){
+  const item=AREAS[areaKey].items[idx];
+  const name=trItem(item.id,item.item);
+  document.getElementById('modal-title').textContent='Edit Item';
+  document.getElementById('modal-body').innerHTML=`
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Item name (EN)</label>
+      <input id="edit-item-name" class="form-input" value="${item.item}" style="margin-bottom:0;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Level</label>
+      <select id="edit-item-level" class="form-input" style="margin-bottom:0;">
+        <option ${item.level==='Critical'?'selected':''}>Critical</option>
+        <option ${item.level==='Moderate'?'selected':''}>Moderate</option>
+        <option ${item.level==='Low'?'selected':''}>Low</option>
+      </select>
+    </div>`;
+  document.getElementById('modal-btn').textContent='Save';
+  document.getElementById('modal-btn').className='btn btn-primary';
+  document.getElementById('modal-btn').onclick=()=>{
+    const newName=document.getElementById('edit-item-name').value.trim();
+    const newLevel=document.getElementById('edit-item-level').value;
+    if(!newName) return;
+    AREAS[areaKey].items[idx].item=newName;
+    AREAS[areaKey].items[idx].level=newLevel;
+    // Save to localStorage
+    saveCustomItems();
+    closeModal();
+    buildAuditItemsTab();
+    showToast('Item updated');
+  };
+  document.getElementById('modal').classList.add('show');
+}
+
+function showAddItemModal(){
+  document.getElementById('modal-title').textContent='Add New Audit Item';
+  document.getElementById('modal-body').innerHTML=`
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Area</label>
+      <select id="new-item-area" class="form-input" style="margin-bottom:0;">
+        ${Object.keys(AREAS).map(k=>`<option value="${k}">${AREAS[k].icon} ${trArea(k)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Item name</label>
+      <input id="new-item-name" class="form-input" placeholder="e.g. Pool pH level checked" style="margin-bottom:0;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Level</label>
+      <select id="new-item-level" class="form-input" style="margin-bottom:0;">
+        <option>Critical</option><option selected>Moderate</option><option>Low</option>
+      </select>
+    </div>`;
+  document.getElementById('modal-btn').textContent='Add Item';
+  document.getElementById('modal-btn').className='btn btn-primary';
+  document.getElementById('modal-btn').onclick=()=>{
+    const area=document.getElementById('new-item-area').value;
+    const name=document.getElementById('new-item-name').value.trim();
+    const level=document.getElementById('new-item-level').value;
+    if(!name){showToast('Enter item name');return;}
+    const areaItems=AREAS[area].items;
+    const newId=area.substring(0,2).toUpperCase()+(areaItems.length+1).toString().padStart(2,'0');
+    areaItems.push({id:newId,item:name,level,weight:0.05,score:0,notes:''});
+    saveCustomItems();
+    closeModal();
+    buildAuditItemsTab();
+    showToast('Item added to '+trArea(area));
+  };
+  document.getElementById('modal').classList.add('show');
+}
+
+function saveCustomItems(){
+  const custom={};
+  Object.keys(AREAS).forEach(k=>{
+    custom[k]=AREAS[k].items.map(i=>({id:i.id,item:i.item,level:i.level,weight:i.weight}));
+  });
+  localStorage.setItem('custom_audit_items',JSON.stringify(custom));
+}
+
+function loadCustomItems(){
+  const saved=localStorage.getItem('custom_audit_items');
+  if(!saved) return;
+  try{
+    const custom=JSON.parse(saved);
+    Object.keys(custom).forEach(k=>{
+      if(!AREAS[k]) return;
+      custom[k].forEach(ci=>{
+        const existing=AREAS[k].items.find(i=>i.id===ci.id);
+        if(existing){existing.item=ci.item;existing.level=ci.level;}
+        else AREAS[k].items.push({...ci,score:0,notes:''});
+      });
+    });
+  }catch(e){}
+}
+
+// Manager suggestions
+async function showSuggestItemModal(){
+  document.getElementById('modal-title').textContent='Suggest New Item';
+  document.getElementById('modal-body').innerHTML=`
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">Your suggestion will be sent to admin for approval.</div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Area</label>
+      <select id="sug-area" class="form-input" style="margin-bottom:0;">
+        ${Object.keys(AREAS).map(k=>`<option value="${k}">${AREAS[k].icon} ${trArea(k)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Suggested item</label>
+      <input id="sug-name" class="form-input" placeholder="Describe what should be checked..." style="margin-bottom:0;">
+    </div>`;
+  document.getElementById('modal-btn').textContent='Submit Suggestion';
+  document.getElementById('modal-btn').className='btn btn-primary';
+  document.getElementById('modal-btn').onclick=async()=>{
+    const area=document.getElementById('sug-area').value;
+    const name=document.getElementById('sug-name').value.trim();
+    if(!name){showToast('Enter a description');return;}
+    const{error}=await sb.from('item_suggestions').insert({
+      manager_id:currentUser.id,area_key:area,suggestion:name,status:'pending',
+      created_at:new Date().toISOString()
+    });
+    if(error){showToast('Error: '+error.message);return;}
+    closeModal();
+    showToast('Suggestion submitted!');
+  };
+  document.getElementById('modal').classList.add('show');
+}
+
+async function loadSuggestions(){
+  const el=document.getElementById('suggestions-content');
+  const{data,error}=await sb.from('item_suggestions').select('*').order('created_at',{ascending:false});
+  if(error||!data?.length){
+    el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No suggestions yet.</p></div>';
+    return;
+  }
+  el.innerHTML=`<div style="display:flex;flex-direction:column;gap:8px;">`+
+  data.map(s=>`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);">
+    <div style="flex:1;">
+      <div style="font-size:12px;font-weight:500;">${s.suggestion}</div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px;">${trArea(s.area_key)} · ${new Date(s.created_at).toLocaleDateString('en-GB')}</div>
+    </div>
+    <span style="font-size:10px;padding:2px 8px;border-radius:4px;background:${s.status==='pending'?'var(--amber-bg)':s.status==='approved'?'var(--green-bg)':'var(--red-bg)'};color:${s.status==='pending'?'var(--amber)':s.status==='approved'?'var(--green)':'var(--red)'};">${s.status}</span>
+    ${s.status==='pending'&&currentRole==='admin'?`
+      <button onclick="approveSuggestion('${s.id}','${s.area_key}','${s.suggestion.replace(/'/g,"\'")}',this)" style="padding:4px 10px;background:var(--green-bg);border:1px solid var(--green);border-radius:4px;color:var(--green);font-size:10px;font-weight:600;cursor:pointer;">✓ Approve</button>
+      <button onclick="rejectSuggestion('${s.id}',this)" style="padding:4px 10px;background:var(--red-bg);border:1px solid var(--red);border-radius:4px;color:var(--red);font-size:10px;font-weight:600;cursor:pointer;">✕ Reject</button>`:''}
+  </div>`).join('')+`</div>`;
+}
+
+async function approveSuggestion(id,areaKey,suggestion,btn){
+  // Add to AREAS and save
+  const areaItems=AREAS[areaKey]?.items;
+  if(!areaItems){showToast('Area not found');return;}
+  const newId=areaKey.substring(0,2).toUpperCase()+(areaItems.length+1).toString().padStart(2,'0');
+  areaItems.push({id:newId,item:suggestion,level:'Moderate',weight:0.05,score:0,notes:''});
+  saveCustomItems();
+  // Update status in DB
+  await sb.from('item_suggestions').update({status:'approved'}).eq('id',id);
+  showToast('✓ Suggestion approved and added');
+  loadSuggestions();
+}
+
+async function rejectSuggestion(id,btn){
+  await sb.from('item_suggestions').update({status:'rejected'}).eq('id',id);
+  showToast('Suggestion rejected');
+  loadSuggestions();
 }
 
 
