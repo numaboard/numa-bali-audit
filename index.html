@@ -1682,15 +1682,31 @@ function setupApp(){
   // Show manager view card in settings for admin
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
-  // Default page per role
+
+  // Apply permissions to sidebar items
+  const showEl=(id,vis)=>{const el=document.getElementById(id);if(el)el.style.display=vis?'flex':'none';};
   if(isManager){
     const p=getManagerPerms();
+    window._managerPerms=p;
+    showEl('sbitem-checkin', p.canCheckin);
+    showEl('sbitem-manager-reports', p.canManagerReports);
+    showEl('sbitem-dashboard', p.canDashboard);
+    showEl('sbitem-history', p.canHistory);
+    showEl('sbitem-start', p.canAudit);
+    showEl('sbitem-flags', p.canFlags);
     if(p.canCheckin) window._defaultPage='checkin';
     else if(p.canManagerReports) window._defaultPage='manager-reports';
     else if(p.canDashboard) window._defaultPage='dashboard';
     else window._defaultPage='settings';
-  } else if(currentRole==='investor') window._defaultPage='history';
-  else window._defaultPage='dashboard';
+  } else if(currentRole==='investor'){
+    showEl('sbitem-history', true);showEl('sbitem-dashboard', true);
+    showEl('sbitem-start', false);showEl('sbitem-flags', false);
+    window._defaultPage='history';
+  } else {
+    showEl('sbitem-dashboard', true);showEl('sbitem-history', true);
+    showEl('sbitem-start', true);showEl('sbitem-flags', true);
+    window._defaultPage='dashboard';
+  }
 
   // Configure mobile nav per role
   configureMobileNav();
