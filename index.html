@@ -1613,6 +1613,8 @@ async function doLogin(){
     currentUser=data.user;
     const{data:rd}=await sb.from('user_roles').select('role').eq('id',data.user.id).single();
     currentRole=rd?.role||'investor';
+    // Load permissions from DB before setup
+    await loadManagerPermsFromDB();
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-shell').style.display='flex';
     setupApp();
@@ -1642,6 +1644,7 @@ async function checkSession(){
     currentUser=session.user;
     const{data:rd}=await sb.from('user_roles').select('role').eq('id',session.user.id).single();
     currentRole=rd?.role||'investor';
+    await loadManagerPermsFromDB();
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app-shell').style.display='flex';
     setupApp();
@@ -3332,10 +3335,9 @@ var DEFAULT_MANAGER_PERMS={
   canSendReport:false,
 };
 
-function loadPermissionsCard(){
+async function loadPermissionsCard(){
   if(currentRole!=='admin') return;
-  const card=document.getElementById('permissions-card');
-  if(card) card.style.display='block';
+  await loadManagerPermsFromDB();
   const saved=JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
   const perms=[
     {key:'canCheckin',      label:'Weekly Check-in',    desc:'Submit weekly check-in (29 items/week)',   default:true},
@@ -3360,18 +3362,38 @@ function loadPermissionsCard(){
     </div>`).join('');
 }
 
-function savePermissions(){
+async function savePermissions(){
   const perms={};
   ['canCheckin','canManagerReports','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
     const el=document.getElementById('perm-'+k);
     if(el) perms[k]=el.checked;
   });
+  // Save to Supabase so manager gets them on any device
+  const{error}=await sb.from('app_settings')
+    .upsert({key:'manager_perms',value:JSON.stringify(perms)},{onConflict:'key'});
+  if(error){
+    // Fallback to localStorage if table doesn't exist yet
+    localStorage.setItem('manager_perms',JSON.stringify(perms));
+  }
+  // Also update localStorage as cache
   localStorage.setItem('manager_perms',JSON.stringify(perms));
-  showToast('✓ Permissions saved');
+  showToast('Permissions saved');
 }
 
 function getManagerPerms(){
+  // Use cached version (loaded async on init)
   return JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
+}
+
+async function loadManagerPermsFromDB(){
+  try{
+    const{data}=await sb.from('app_settings').select('value').eq('key','manager_perms').single();
+    if(data?.value){
+      localStorage.setItem('manager_perms',data.value);
+      return JSON.parse(data.value);
+    }
+  }catch(e){}
+  return getManagerPerms();
 }
 
 
