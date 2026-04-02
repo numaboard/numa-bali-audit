@@ -1733,21 +1733,28 @@ function configureMobileNav(){
   }
 
   if(isManager){
-    // Manager mobile: Check-in | Reports | Settings only
-    if(mnavDash){
-      mnavDash.style.display='flex';
-      mnavDash.style.flex='1';
-      // Rename to "Reports"
-      const lastText=mnavDash.querySelector('svg')?.nextSibling;
-      if(lastText&&lastText.nodeType===3) lastText.textContent=' Reports';
-      else{const span=document.createElement('span');span.textContent='Reports';mnavDash.appendChild(span);}
-      mnavDash.id='mnav-manager-reports';
-      mnavDash.onclick=()=>mobileNav('manager-reports');
+    const p=window._managerPerms||JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
+    // Build mobile nav based on permissions - max 4 items
+    const mnavItems=[];
+    if(p.canCheckin) mnavItems.push({id:'mnav-checkin',label:'Check-in',page:'checkin'});
+    if(p.canManagerReports) mnavItems.push({id:'mnav-manager-reports',label:'Reports',page:'manager-reports'});
+    if(p.canDashboard) mnavItems.push({id:'mnav-dashboard',label:'Dashboard',page:'dashboard'});
+    if(p.canHistory) mnavItems.push({id:'mnav-history-m',label:'History',page:'history'});
+    mnavItems.push({id:'mnav-settings',label:'Settings',page:'settings'});
+
+    // Hide all manager-relevant nav items first
+    [mnavDash,mnavStart,mnavFlags,mnavCheckin].forEach(el=>{if(el) el.style.display='none';});
+
+    // Show only permitted items
+    const mobileNav2=document.querySelector('.mobile-nav');
+    if(mobileNav2){
+      // Clear and rebuild manager mobile nav
+      mobileNav2.innerHTML=mnavItems.slice(0,4).map(item=>`
+        <button class="mobile-nav-item" id="${item.id}" onclick="mobileNav('${item.page}')">
+          <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+          ${item.label}
+        </button>`).join('');
     }
-    if(mnavStart) mnavStart.style.display='none';
-    if(mnavFlags) mnavFlags.style.display='none';
-    if(mnavCheckin){mnavCheckin.style.display='flex';mnavCheckin.style.flex='1';}
-    if(mnavSettings){mnavSettings.style.display='flex';mnavSettings.style.flex='1';}
   }
 }
 
@@ -2486,14 +2493,21 @@ function updateSBScores(){
 // NAV
 // =========================================================
 function nav(page,el){
-  // Access control
-  const adminOnly=['start','flags','area_','dashboard','history'];
-  const managerOnly=['checkin','manager-reports'];
+  // Access control — use permissions, no popup (items shouldn't be visible if no permission)
   if(currentRole==='manager'){
-    if(adminOnly.some(p=>page===p||page.startsWith('area_'))){showAccessDenied();return;}
+    const p=window._managerPerms||JSON.parse(localStorage.getItem('manager_perms')||'null')||DEFAULT_MANAGER_PERMS;
+    const allowed=['settings'];
+    if(p.canCheckin) allowed.push('checkin');
+    if(p.canManagerReports) allowed.push('manager-reports');
+    if(p.canDashboard) allowed.push('dashboard');
+    if(p.canHistory) allowed.push('history');
+    if(p.canAudit){allowed.push('start');Object.keys(AREAS).forEach(k=>allowed.push('area_'+k));}
+    if(p.canFlags) allowed.push('flags');
+    const isAllowed=allowed.some(a=>page===a||page.startsWith(a));
+    if(!isAllowed) return; // silently block, no popup
   }
   if(currentRole==='investor'){
-    if(['start','flags','checkin','manager-reports'].some(p=>page===p||page.startsWith('area_'))){showAccessDenied();return;}
+    if(!['dashboard','history','settings'].includes(page)) return;
   }
 
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
