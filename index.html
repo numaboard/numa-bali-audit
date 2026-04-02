@@ -1683,7 +1683,7 @@ function setupApp(){
     else if(p.canManagerReports) window._defaultPage='manager-reports';
     else if(p.canDashboard) window._defaultPage='dashboard';
     else window._defaultPage='settings';
-  } else if(isInvestor) window._defaultPage='history';
+  } else if(currentRole==='investor') window._defaultPage='history';
   else window._defaultPage='dashboard';
 
   // Configure mobile nav per role
@@ -3395,12 +3395,9 @@ function setupSettingsTabs(){
   const tabPerms=document.getElementById('tab-permissions');
   const tabItems=document.getElementById('tab-items');
   const tabSugg=document.getElementById('tab-suggestions');
-  if(tabPerms) tabPerms.style.display=isAdmin?'':'none';
-  if(tabItems) tabItems.style.display=isAdmin?'':'none';
-  if(tabSugg) tabSugg.style.display=isAdmin?'':'none';
-  // Move permissions card content to tab
-  const permCard=document.getElementById('permissions-card');
-  if(permCard) permCard.style.display='none';
+  if(tabPerms) tabPerms.style.display=isAdmin?'inline-flex':'none';
+  if(tabItems) tabItems.style.display=isAdmin?'inline-flex':'none';
+  if(tabSugg) tabSugg.style.display=isAdmin?'inline-flex':'none';
 }
 
 function buildAuditItemsTab(){
