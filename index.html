@@ -1664,7 +1664,7 @@ function setupApp(){
   document.getElementById('sb-user-role').textContent=rd.label;
   const se=document.getElementById('settings-email');if(se) se.textContent=email;
   const sr=document.getElementById('settings-role');if(sr) sr.textContent=rd.label;
-  document.getElementById('sbitem-history').style.display=rd.canHistory?'flex':'none';
+  // sbitem-history visibility controlled by permissions below
   // PDF and Telegram report only for admin
   document.getElementById('btn-export').style.display=currentRole==='admin'?'':'none';
   document.getElementById('btn-tg').style.display=currentRole==='admin'?'':'none';
