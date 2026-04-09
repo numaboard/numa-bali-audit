@@ -3269,7 +3269,7 @@ async function buildManagerReports(){
         ${weekProblems.map(p=>`<div style="display:flex;gap:8px;font-size:11px;padding:5px 8px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:4px;align-items:flex-start;">
           <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:600;flex-shrink:0;">${p.status==='bad'?'✕':'⚠'}</span>
           <span style="flex:1;">${trItem(p.item_id,p.item_id)} <span style="color:var(--text3);">· ${trArea(p.area_key)}</span>${p.note?` <em style="color:var(--text2);">"${p.note}"</em>`:''}</span>
-          ${currentRole==='admin'?`<button onclick="moveToMaintenance('${p.id||''}','${p.item_id}','${p.area_key}','${trItem(p.item_id,p.item_id).replace(/'/g,"\'")}','${trArea(p.area_key)}','${p.status}','${(p.note||'').replace(/'/g,"\'")}',${p.photo_base64?`'${p.photo_base64}'`:null})" style="padding:2px 8px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;">→ Maintenance</button>`:''}
+          ${currentRole==='admin'?`<button onclick="moveToMaintenance('${p.id||''}','${p.item_id}','${p.area_key}','${trItem(p.item_id,p.item_id).replace(/'/g,"\'")}','${trArea(p.area_key)}','${p.status}','${(p.note||'').replace(/'/g,"\'")}',${p.photo_base64?`'${p.photo_base64}'`:null})" style="padding:2px 8px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;" title="Move to maintenance if physical intervention needed">→ Maint.</button>`:''}
         </div>`).join('')}
       </div>`:''}
     </div>`;
@@ -3726,6 +3726,11 @@ async function rejectSuggestion(id,btn){
 // =========================================================
 
 async function moveToMaintenance(checkinId, itemId, areaKey, itemName, areaName, status, note, photoBase64){
+  // Check for duplicate open task
+  const{data:existing}=await sb.from('maintenance_tasks')
+    .select('id').eq('item_id',itemId).eq('area_key',areaKey).eq('status','open').limit(1);
+  if(existing?.length){showToast('Already in Maintenance');return;}
+
   const priority = status === 'bad' ? 'high' : 'medium';
   const{error}=await sb.from('maintenance_tasks').insert({
     checkin_id: checkinId,
@@ -3741,10 +3746,8 @@ async function moveToMaintenance(checkinId, itemId, areaKey, itemName, areaName,
     created_at: new Date().toISOString()
   });
   if(error){showToast('Error: '+error.message);return;}
-  showToast('→ Moved to Maintenance');
-  // Update badge
+  showToast('→ Added to Maintenance');
   updateMaintenanceBadge();
-  // Rebuild manager reports to remove the button
   buildManagerReports();
 }
 
@@ -3796,12 +3799,15 @@ function renderMaintenanceTasks(data, filter){
           <div style="font-size:13px;font-weight:600;">${task.item_name}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px;">${task.area_name} · Opened ${date}${isOpen?' · '+daysOpen+'d open':' · Resolved '+resolvedDate}</div>
         </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
         ${isOpen?`
-          <button onclick="resolveTask('${task.id}')" style="padding:5px 12px;background:var(--green-bg);border:1px solid var(--green);border-radius:var(--radius-sm);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">✓ Resolved</button>
+          <button onclick="resolveTask('${task.id}')" style="padding:5px 12px;background:var(--green-bg);border:1px solid var(--green);border-radius:var(--radius-sm);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;">✓ Resolved</button>
+          <button onclick="deleteTask('${task.id}')" style="padding:5px 10px;background:var(--red-bg);border:1px solid var(--red);border-radius:var(--radius-sm);color:var(--red);font-size:11px;font-weight:600;cursor:pointer;">✕</button>
         `:`<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:var(--green-bg);color:var(--green);">✓ Resolved</span>`}
       </div>
+      </div>
       ${task.note?`<div style="font-size:12px;color:var(--text2);font-style:italic;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);">"${task.note}"</div>`:''}
-      ${task.photo_base64?`<img src="${task.photo_base64}" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-sm);margin-top:8px;">`:''}
+      ${task.photo_base64?`<img src="${task.photo_base64}" onclick="showFullPhoto(this.src)" style="width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-sm);margin-top:8px;cursor:zoom-in;">`:''}
     </div>`;
   }).join('');
 }
@@ -3810,6 +3816,26 @@ function filterMaintenance(filter, btn){
   document.querySelectorAll('#page-maintenance .filter-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   if(window._maintTasks) renderMaintenanceTasks(window._maintTasks, filter);
+}
+
+async function deleteTask(taskId){
+  showModal('Delete Task','Remove this maintenance task permanently?',async()=>{
+    await sb.from('maintenance_tasks').delete().eq('id',taskId);
+    showToast('Task deleted');
+    buildMaintenance();
+    updateMaintenanceBadge();
+  },'Delete',true);
+}
+
+function showFullPhoto(src){
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  overlay.onclick=()=>overlay.remove();
+  const img=document.createElement('img');
+  img.src=src;
+  img.style.cssText='max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;';
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
 }
 
 async function resolveTask(taskId){
