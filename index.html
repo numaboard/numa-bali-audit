@@ -3145,7 +3145,13 @@ async function loadManagerReliability(){
   const weekNum=getWeekNumber();
   const weeksExpected=12; // last quarter
   const byWeek={};
-  data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
+  // Store checkin data map for photo lookup
+  window._checkinDataMap={};
+  data.forEach(r=>{
+    if(!byWeek[r.week_number]) byWeek[r.week_number]=[];
+    byWeek[r.week_number].push(r);
+    window._checkinDataMap[r.id]=r;
+  });
   const weeksSubmitted=Object.keys(byWeek).length;
   const reliabilityScore=Math.round((weeksSubmitted/weeksExpected)*100);
   const totalItems=data.length;
@@ -3164,6 +3170,8 @@ async function loadManagerReliability(){
 async function buildManagerReports(){
   const{data:openMT}=await sb.from('maintenance_tasks').select('item_id,area_key').eq('status','open');
   window._openMaintKeys=new Set((openMT||[]).map(t=>t.area_key+':'+t.item_id));
+  // Build photo map for maintenance transfer
+  window._checkinPhotoMap={};
 
   const el=document.getElementById('manager-reports-content');
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
@@ -3254,6 +3262,7 @@ async function buildManagerReports(){
     const pctOk=Math.round(ok/items.length*100);
     const barColor=pctOk>=80?'var(--green)':pctOk>=60?'var(--amber)':'var(--red)';
     const weekProblems=items.filter(i=>i.status==='bad'||i.status==='warn');
+    weekProblems.forEach(p=>{if(p.photo_base64) window._checkinPhotoMap[p.area_key+':'+p.item_id]=p.photo_base64;});
     const hasIssues2=weekProblems.length>0;
     html+=`<div class="week-row" data-has-issues="${hasIssues2}" style="padding:14px 16px;border-bottom:1px solid var(--border);">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:${weekProblems.length?'8':'0'}px;">
@@ -3404,10 +3413,13 @@ async function showItemDetail(areaKey, itemId){
 }
 
 function toggleIssuesOnly(checked){
-  document.querySelectorAll('.week-row').forEach(r=>{
-    const has=r.getAttribute('data-has-issues')==='true';
-    r.style.display=checked&&!has?'none':'';
-  });
+  // Use setTimeout to ensure DOM is updated
+  setTimeout(()=>{
+    document.querySelectorAll('.week-row').forEach(r=>{
+      const has=r.getAttribute('data-has-issues')==='true';
+      r.style.display=checked&&!has?'none':'';
+    });
+  },10);
 }
 
 function filterCoverage(filter){
@@ -3742,7 +3754,9 @@ async function rejectSuggestion(id,btn){
 
 function moveToMaintToHandler(e,btn){
   const d=btn.dataset;
-  moveToMaintenance(d.id||'',d.item,d.area,d.name,d.aname,d.status,d.note,null);
+  // Look up photo from cached checkin data
+  const photo=window._checkinPhotoMap?.[d.area+':'+d.item]||null;
+  moveToMaintenance(d.id||'',d.item,d.area,d.name,d.aname,d.status,d.note,photo);
 }
 
 async function moveToMaintenance(checkinId, itemId, areaKey, itemName, areaName, status, note, photoBase64){
