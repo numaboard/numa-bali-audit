@@ -3162,6 +3162,9 @@ async function loadManagerReliability(){
 // MANAGER REPORTS (admin view)
 // =========================================================
 async function buildManagerReports(){
+  const{data:openMT}=await sb.from('maintenance_tasks').select('item_id,area_key').eq('status','open');
+  window._openMaintKeys=new Set((openMT||[]).map(t=>t.area_key+':'+t.item_id));
+
   const el=document.getElementById('manager-reports-content');
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
@@ -3240,8 +3243,7 @@ async function buildManagerReports(){
   const byWeek={};
   data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
 
-  html+=`<div class="table-wrap" style="margin-bottom:20px;">
-    <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</div>`;
+  html+=`<div class="table-wrap" style="margin-bottom:20px;"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</span><label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="filter-issues-only" onchange="toggleIssuesOnly(this.checked)" style="cursor:pointer;accent-color:var(--text);"> Issues only</label></div>`;
 
   Object.keys(byWeek).sort((a,b)=>b-a).forEach(week=>{
     const items=byWeek[week];
@@ -3252,7 +3254,8 @@ async function buildManagerReports(){
     const pctOk=Math.round(ok/items.length*100);
     const barColor=pctOk>=80?'var(--green)':pctOk>=60?'var(--amber)':'var(--red)';
     const weekProblems=items.filter(i=>i.status==='bad'||i.status==='warn');
-    html+=`<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+    const hasIssues2=weekProblems.length>0;
+    html+=`<div class="week-row" data-has-issues="${hasIssues2}" style="padding:14px 16px;border-bottom:1px solid var(--border);">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:${weekProblems.length?'8':'0'}px;">
         <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:60px;">Week ${week}</div>
         <div style="font-size:12px;font-weight:500;">${date}</div>
@@ -3269,7 +3272,10 @@ async function buildManagerReports(){
         ${weekProblems.map(p=>`<div style="display:flex;gap:8px;font-size:11px;padding:5px 8px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:4px;align-items:flex-start;">
           <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:600;flex-shrink:0;">${p.status==='bad'?'✕':'⚠'}</span>
           <span style="flex:1;">${trItem(p.item_id,p.item_id)} <span style="color:var(--text3);">· ${trArea(p.area_key)}</span>${p.note?` <em style="color:var(--text2);">"${p.note}"</em>`:''}</span>
-          ${currentRole==='admin'?`<button onclick="moveToMaintenance('${p.id||''}','${p.item_id}','${p.area_key}','${trItem(p.item_id,p.item_id).replace(/'/g,"\'")}','${trArea(p.area_key)}','${p.status}','${(p.note||'').replace(/'/g,"\'")}',${p.photo_base64?`'${p.photo_base64}'`:null})" style="padding:2px 8px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;font-size:10px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;" title="Move to maintenance if physical intervention needed">→ Maint.</button>`:''}
+          ${currentRole==='admin'?(window._openMaintKeys?.has(p.area_key+':'+p.item_id)?
+            '<span style=\"padding:2px 8px;border:1px solid var(--amber);border-radius:4px;font-size:10px;font-weight:500;color:var(--amber)\">🔧 In Maint.</span>':
+            '<button onclick=\"moveToMaintToHandler(event,this)\" data-id="'+p.id+'" data-item="'+p.item_id+'" data-area="'+p.area_key+'" data-name="'+trItem(p.item_id,p.item_id).replace(/"/g,'')+'" data-aname="'+trArea(p.area_key)+'" data-status="'+p.status+'" data-note="'+(p.note||'').replace(/"/g,'')+'" style=\"padding:2px 8px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap\">→ Maint.</button>'
+          ):''}
         </div>`).join('')}
       </div>`:''}
     </div>`;
@@ -3393,6 +3399,15 @@ async function showItemDetail(areaKey, itemId){
   document.getElementById('modal-btn').textContent='Close';
   document.getElementById('modal-btn').onclick=closeModal;
   document.getElementById('modal-btn').className='btn btn-primary';
+  const cancelBtnEl=document.querySelector('#modal .modal-actions .btn-ghost');
+  if(cancelBtnEl) cancelBtnEl.style.display='none';
+}
+
+function toggleIssuesOnly(checked){
+  document.querySelectorAll('.week-row').forEach(r=>{
+    const has=r.getAttribute('data-has-issues')==='true';
+    r.style.display=checked&&!has?'none':'';
+  });
 }
 
 function filterCoverage(filter){
@@ -3725,6 +3740,11 @@ async function rejectSuggestion(id,btn){
 // MAINTENANCE SYSTEM
 // =========================================================
 
+function moveToMaintToHandler(e,btn){
+  const d=btn.dataset;
+  moveToMaintenance(d.id||'',d.item,d.area,d.name,d.aname,d.status,d.note,null);
+}
+
 async function moveToMaintenance(checkinId, itemId, areaKey, itemName, areaName, status, note, photoBase64){
   // Check for duplicate open task
   const{data:existing}=await sb.from('maintenance_tasks')
@@ -3803,7 +3823,7 @@ function renderMaintenanceTasks(data, filter){
         ${isOpen?`
           <button onclick="resolveTask('${task.id}')" style="padding:5px 12px;background:var(--green-bg);border:1px solid var(--green);border-radius:var(--radius-sm);color:var(--green);font-size:11px;font-weight:600;cursor:pointer;">✓ Resolved</button>
           <button onclick="deleteTask('${task.id}')" style="padding:5px 10px;background:var(--red-bg);border:1px solid var(--red);border-radius:var(--radius-sm);color:var(--red);font-size:11px;font-weight:600;cursor:pointer;">✕</button>
-        `:`<span style="font-size:10px;padding:2px 8px;border-radius:4px;background:var(--green-bg);color:var(--green);">✓ Resolved</span>`}
+        `:`<div style="display:flex;gap:6px;"><span style="font-size:10px;padding:2px 8px;border-radius:4px;background:var(--green-bg);color:var(--green);">✓ Resolved</span><button onclick="reopenTask(\'${task.id}\')" style="padding:2px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:10px;cursor:pointer;color:var(--text2);">↩ Reopen</button></div>`}
       </div>
       </div>
       ${task.note?`<div style="font-size:12px;color:var(--text2);font-style:italic;padding:8px 10px;background:var(--bg);border-radius:var(--radius-sm);">"${task.note}"</div>`:''}
@@ -3816,6 +3836,13 @@ function filterMaintenance(filter, btn){
   document.querySelectorAll('#page-maintenance .filter-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   if(window._maintTasks) renderMaintenanceTasks(window._maintTasks, filter);
+}
+
+async function reopenTask(taskId){
+  const{error}=await sb.from('maintenance_tasks').update({status:'open',resolved_at:null,auto_resolved:false}).eq('id',taskId);
+  if(error){showToast('Error');return;}
+  showToast('Task reopened');
+  buildMaintenance();updateMaintenanceBadge();
 }
 
 async function deleteTask(taskId){
@@ -3848,28 +3875,11 @@ async function resolveTask(taskId){
   updateMaintenanceBadge();
 }
 
-// Auto-resolve: check if manager marked item OK after being in maintenance
+// Auto-resolve removed — only manual resolve
 async function checkAutoResolve(){
-  const{data:openTasks}=await sb.from('maintenance_tasks').select('*').eq('status','open');
-  if(!openTasks?.length) return;
-  const weekNum=getWeekNumber();
-  for(const task of openTasks){
-    // Check if this item was marked OK this week or last week
-    const{data:recentOK}=await sb.from('weekly_checkins')
-      .select('id')
-      .eq('item_id',task.item_id)
-      .eq('area_key',task.area_key)
-      .eq('status','ok')
-      .gte('week_number',weekNum-1)
-      .limit(1);
-    if(recentOK?.length){
-      await sb.from('maintenance_tasks')
-        .update({status:'resolved',resolved_at:new Date().toISOString(),auto_resolved:true})
-        .eq('id',task.id);
-    }
-  }
   updateMaintenanceBadge();
 }
+
 
 
 // Apply theme on load
