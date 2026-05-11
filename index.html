@@ -3236,6 +3236,7 @@ async function loadManagerReliability(){
     window._checkinDataMap[r.id]=r;
   });
   window._weeklyHistoryData=byWeek;
+  window._weeklyHistoryData=byWeek;
   const weeksSubmitted=Object.keys(byWeek).length;
   const reliabilityScore=Math.round((weeksSubmitted/weeksExpected)*100);
   const totalItems=data.length;
@@ -3332,7 +3333,13 @@ async function buildManagerReports(){
 
   // ── Weekly history ──
   const byWeek={};
-  data.forEach(r=>{if(!byWeek[r.week_number]) byWeek[r.week_number]=[];byWeek[r.week_number].push(r);});
+  window._checkinDataMap={};
+  data.forEach(r=>{
+    if(!byWeek[r.week_number]) byWeek[r.week_number]=[];
+    byWeek[r.week_number].push(r);
+    window._checkinDataMap[r.id]=r;
+  });
+  window._weeklyHistoryData=byWeek;
 
   html+=`<div class="table-wrap" style="margin-bottom:20px;"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;"><span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;">Weekly History</span><label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer;"><input type="checkbox" id="filter-issues-only" onchange="toggleIssuesOnly(this.checked)" style="cursor:pointer;accent-color:var(--text);"> Issues only</label></div><div id="weekly-history-rows"></div><div id="weekly-load-more" style="padding:12px 16px;text-align:center;"></div></div>`;
 
