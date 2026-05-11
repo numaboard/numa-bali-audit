@@ -208,6 +208,13 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
 .score-stepper button:hover{border-color:var(--border2);color:var(--text);}
 .score-stepper button:disabled{opacity:.3;cursor:not-allowed;}
 .score-num{font-size:13px;font-weight:600;min-width:18px;text-align:center;font-family:'JetBrains Mono',monospace;}
+.cat-btns{display:inline-flex;gap:3px;flex-wrap:nowrap;}
+.cat-btn{padding:4px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);font-size:10px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap;color:var(--text2);}
+.cat-btn:hover{border-color:var(--border2);}
+.cat-btn.ok.sel{background:var(--green-bg);border-color:var(--green);color:var(--green);}
+.cat-btn.watch.sel{background:var(--blue-bg);border-color:var(--blue);color:var(--blue);}
+.cat-btn.bad.sel{background:var(--amber-bg);border-color:var(--amber);color:var(--amber);}
+.cat-btn.fail.sel{background:var(--red-bg);border-color:var(--red);color:var(--red);}
 .inline-bar{display:inline-flex;align-items:center;gap:6px;}
 .inline-bar-track{width:56px;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;}
 .inline-bar-fill{height:100%;border-radius:2px;}
@@ -1524,6 +1531,26 @@ var TEAMS = {
   lobby:          {name:'Front of House',        emoji:'🏛️', members:'Receptionist Team'},
 };
 
+
+// ── AUDIT CATEGORIES ──
+const AUDIT_CATS=[
+  {key:'ok',   label:'✅ OK',        score:5,   cls:'ok'},
+  {key:'watch',label:'👁 Watch',     score:3.5, cls:'watch'},
+  {key:'bad',  label:'⚠️ Poor',      score:2,   cls:'bad'},
+  {key:'fail', label:'❌ Unacceptable',score:1,  cls:'fail'},
+];
+function catFromScore(s){
+  if(s===5) return 'ok';
+  if(s>=3) return 'watch';
+  if(s>=2) return 'bad';
+  if(s>0)  return 'fail';
+  return '';
+}
+function scoreFromCat(cat){
+  const c=AUDIT_CATS.find(c=>c.key===cat);
+  return c?c.score:0;
+}
+
 // =========================================================
 // SCORING ENGINE
 // =========================================================
@@ -1817,8 +1844,7 @@ async function saveSessionToCloud(meta){
 async function loadSessionsFromCloud(){
   setCloud('loading','Loading...');
   try{
-    const{data,error}=await sb.from('audit_sessions').select('*').order('created_at',{ascending:false});
-    if(error) throw error;
+    const data=await cachedSessions();
     setCloud('ok',data.length+' sessions');
     setTimeout(()=>setCloud('ok','Cloud ready'),2000);
     return data;
@@ -2124,16 +2150,14 @@ function renderArea(key){
       <td class="hide-m">${levelTag(item.level)}</td>
       <td class="hide-m" style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;">${(item.weight*100).toFixed(0)}%</td>
       <td>
-        <div class="score-stepper">
-          <button onclick="changeScore('${key}',${idx},-1)" ${!canEdit?'disabled':''}>−</button>
-          <span class="score-num" id="sv-${key}-${idx}" style="color:${bc};">${item.score===0?'—':item.score}</span>
-          <button onclick="changeScore('${key}',${idx},+1)" ${!canEdit?'disabled':''}>+</button>
+        <div class="cat-btns" id="catbtns-${key}-${idx}">
+          ${AUDIT_CATS.map(cat=>`<button class="cat-btn ${cat.cls} ${catFromScore(item.score)===cat.key?'sel':''}" onclick="setCat('${key}',${idx},'${cat.key}')" ${!canEdit?'disabled':''}>${cat.label}</button>`).join('')}
         </div>
       </td>
       <td>
         <div class="inline-bar">
           <div class="inline-bar-track"><div class="inline-bar-fill" id="bar-${key}-${idx}" style="width:${pctI}%;background:${bc};"></div></div>
-          <span style="font-size:10px;color:var(--text3);min-width:24px;font-family:'JetBrains Mono',monospace;">${item.score>0?pctI+'%':'—'}</span>
+          <span style="font-size:10px;color:var(--text3);min-width:28px;font-family:'JetBrains Mono',monospace;">${item.score>0?pctI+'%':'—'}</span>
         </div>
       </td>
       <td class="hide-m"><input class="note-input" placeholder="Note..." value="${item.notes}" ${!canEdit?'disabled':''} oninput="AREAS['${key}'].items[${idx}].notes=this.value"></td>
@@ -2143,28 +2167,37 @@ function renderArea(key){
   document.getElementById('area-content-'+key).innerHTML=html;
 }
 
-function changeScore(key,idx,delta){
+function setCat(key,idx,cat){
   const item=AREAS[key].items[idx];
-  let s=item.score+delta;
-  if(s<0) s=0;if(s>5) s=5;
+  const s=scoreFromCat(cat);
   item.score=s;
-  const sv=document.getElementById('sv-'+key+'-'+idx);
-  sv.textContent=s===0?'—':s; sv.style.color=scoreColor(s);
+  // Update category buttons
+  const btns=document.getElementById('catbtns-'+key+'-'+idx);
+  if(btns) btns.querySelectorAll('.cat-btn').forEach(b=>{
+    b.classList.toggle('sel',b.classList.contains(cat));
+  });
+  // Update inline bar
   const pct=(s/5*100).toFixed(0);
   const bf=document.getElementById('bar-'+key+'-'+idx);
-  bf.style.width=pct+'%'; bf.style.background=scoreColor(s);
-  const tr2=sv.closest('tr'); if(tr2) tr2.setAttribute('data-score',s);
-  if(auditActive){const ps=document.getElementById('progress-bar-section');if(ps) buildProgressBar();}
-  // Auto-update sidebar score
+  if(bf){bf.style.width=pct+'%';bf.style.background=scoreColor(s);}
+  const tr2=btns?.closest('tr');if(tr2) tr2.setAttribute('data-score',s);
+  if(auditActive) buildProgressBar();
   updateSBScores();
-  // Auto-update dashboard KPIs without full rebuild
   autoUpdateKPIs();
-  // Show auto-save indicator
   clearTimeout(window._asTimer);
   window._asTimer=setTimeout(()=>{
     const el=document.getElementById('autosave-'+key);
     if(el){el.style.display='inline';setTimeout(()=>el.style.display='none',1500);}
   },800);
+}
+
+// Keep changeScore as alias for compatibility
+function changeScore(key,idx,delta){
+  const item=AREAS[key].items[idx];
+  let s=item.score+delta;
+  if(s<0)s=0;if(s>5)s=5;
+  item.score=s;
+  updateSBScores();autoUpdateKPIs();
 }
 
 function showAccessDenied(){
@@ -2475,7 +2508,7 @@ async function saveCurrentSession(){
   const date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const id=await saveSessionToCloud({date,auditor,overallAvg:g.overallAvg.toFixed(2),failed:g.failed,totalFlags:g.totalFlags,notes:document.getElementById('session-note')?.value||''});
   if(id){
-    showToast(tr('sessionSaved'));
+    invalidateCache('sessions');showToast(tr('sessionSaved'));
     auditActive=false;
     selectedAreas=null;
     updateAuditBanner();
@@ -2839,11 +2872,13 @@ function initApp(){
     checkAutoResolve();
   }
   applyI18n();
-  // Supabase connection check
+  // Prefetch all data in background
   (async()=>{
-    try{const{error}=await sb.from('audit_sessions').select('id').limit(1);
-      if(error) throw error;
+    try{
+      setCloud('loading','Loading...');
+      await Promise.all([cachedSessions(),cachedCheckins(),cachedMaintTasks()]);
       setCloud('ok','Cloud ready');
+      updateMaintenanceBadge();
     }catch(e){setCloud('err','Offline');}
   })();
 }
@@ -3085,8 +3120,56 @@ async function submitCheckin(){
 
   const{error}=await sb.from('weekly_checkins').insert(rows);
   if(error){showToast('Error saving: '+error.message);return;}
-  showToast('✓ Weekly check-in submitted!');
-  buildCheckinPage(); // reload to show completed state
+  invalidateCache('checkins');showToast('✓ Weekly check-in submitted!');
+  // Auto-create maintenance tasks for problems
+  await autoCreateMaintenanceTasks(rows);
+  buildCheckinPage();
+}
+
+async function autoCreateMaintenanceTasks(rows){
+  const weekNum=getWeekNumber();
+  for(const row of rows){
+    if(row.status==='bad'){
+      // Problem → auto to maintenance immediately
+      const{data:existing}=await sb.from('maintenance_tasks')
+        .select('id').eq('item_id',row.item_id).eq('area_key',row.area_key).eq('status','open').limit(1);
+      if(!existing?.length){
+        const itemName=trItem(row.item_id,row.item_id);
+        const areaName=trArea(row.area_key);
+        await sb.from('maintenance_tasks').insert({
+          item_id:row.item_id, area_key:row.area_key,
+          item_name:itemName, area_name:areaName,
+          status:'open', priority:'high',
+          note:row.note||'',
+          photo_base64:row.photo_base64||null,
+          created_by:currentUser.id,
+          created_at:new Date().toISOString()
+        });
+      }
+    } else if(row.status==='warn'){
+      // Warn: check if also warn last week → 2 consecutive = maintenance
+      const{data:lastWeek}=await sb.from('weekly_checkins')
+        .select('status').eq('item_id',row.item_id).eq('area_key',row.area_key)
+        .eq('manager_id',currentUser.id).eq('week_number',weekNum-1).single();
+      if(lastWeek?.status==='warn'){
+        const{data:existing}=await sb.from('maintenance_tasks')
+          .select('id').eq('item_id',row.item_id).eq('area_key',row.area_key).eq('status','open').limit(1);
+        if(!existing?.length){
+          const itemName=trItem(row.item_id,row.item_id);
+          const areaName=trArea(row.area_key);
+          await sb.from('maintenance_tasks').insert({
+            item_id:row.item_id, area_key:row.area_key,
+            item_name:itemName, area_name:areaName,
+            status:'open', priority:'medium',
+            note:'Auto: 2 consecutive warnings. '+( row.note||''),
+            photo_base64:row.photo_base64||null,
+            created_by:currentUser.id,
+            created_at:new Date().toISOString()
+          });
+        }
+      }
+    }
+  }
 }
 
 async function loadCheckinHistory(){
@@ -3177,11 +3260,8 @@ async function buildManagerReports(){
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
   // Fetch only this manager's data (or all if admin)
-  let query=sb.from('weekly_checkins').select('*').order('created_at',{ascending:false}).limit(600);
-  if(currentRole==='manager') query=query.eq('manager_id',currentUser.id);
-
-  const{data,error}=await query;
-  if(error||!data||!data.length){
+  const data=await cachedCheckins();
+  if(!data||!data.length){
     el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No check-in data yet.</p></div>';
     return;
   }
@@ -3365,6 +3445,7 @@ async function buildManagerReports(){
 
   el.innerHTML=html;
   buildTeamRankingsFromCheckins(data);
+  renderWeeklyHistory(false);
 }
 
 // ── Item detail modal with notes and photos ──
@@ -3410,6 +3491,119 @@ async function showItemDetail(areaKey, itemId){
   document.getElementById('modal-btn').className='btn btn-primary';
   const cancelBtnEl=document.querySelector('#modal .modal-actions .btn-ghost');
   if(cancelBtnEl) cancelBtnEl.style.display='none';
+}
+
+function renderWeeklyHistory(showAll=false){
+  const byWeek=window._weeklyHistoryData||{};
+  const weeks=Object.keys(byWeek).sort((a,b)=>b-a);
+  const visibleWeeks=showAll?weeks:weeks.slice(0,3);
+  const remaining=weeks.length-visibleWeeks.length;
+  const issuesOnly=document.getElementById('filter-issues-only')?.checked||false;
+
+  const rowsEl=document.getElementById('weekly-history-rows');
+  const moreEl=document.getElementById('weekly-load-more');
+  if(!rowsEl) return;
+
+  let html='';
+  visibleWeeks.forEach(week=>{
+    const items=byWeek[week];
+    const ok=items.filter(i=>i.status==='ok').length;
+    const warn=items.filter(i=>i.status==='warn').length;
+    const bad=items.filter(i=>i.status==='bad').length;
+    const date=new Date(items[0].created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const pctOk=Math.round(ok/items.length*100);
+    const barColor=pctOk>=80?'var(--green)':pctOk>=60?'var(--amber)':'var(--red)';
+    const weekProblems=items.filter(i=>i.status==='bad'||i.status==='warn');
+    const hasIssues=weekProblems.length>0;
+    if(issuesOnly&&!hasIssues) return;
+
+    html+=`<div class="week-row" data-has-issues="${hasIssues}" data-week="${week}" style="border-bottom:1px solid var(--border);">
+      <div onclick="toggleWeekExpand('${week}')" style="padding:12px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;">
+        <div style="font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:56px;">Week ${week}</div>
+        <div style="font-size:12px;font-weight:500;">${date}</div>
+        <div style="flex:1;height:3px;background:var(--surface2);border-radius:2px;overflow:hidden;">
+          <div style="width:${pctOk}%;height:100%;background:${barColor};border-radius:2px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;font-size:11px;font-weight:600;">
+          <span style="color:var(--green);">✓${ok}</span>
+          ${warn>0?`<span style="color:var(--amber);">⚠${warn}</span>`:''}
+          ${bad>0?`<span style="color:var(--red);">✕${bad}</span>`:''}
+        </div>
+        <span id="chevron-${week}" style="font-size:10px;color:var(--text3);transition:transform .2s;">${hasIssues?'▼':''}</span>
+      </div>
+      <div id="week-detail-${week}" style="display:${hasIssues?'block':'none'};">
+        ${weekProblems.length?`<div style="padding:0 16px 12px;display:flex;flex-direction:column;gap:6px;">
+          ${weekProblems.map(p=>{
+            const hasMaint=window._openMaintKeys?.has(p.area_key+':'+p.item_id);
+            return `<div onclick="showCheckinDetail('${p.id}')" style="display:flex;gap:8px;font-size:11px;padding:8px 10px;background:${p.status==='bad'?'var(--red-bg)':'var(--amber-bg)'};border-radius:6px;align-items:flex-start;cursor:pointer;transition:opacity .1s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">
+              <span style="color:${p.status==='bad'?'var(--red)':'var(--amber)'};font-weight:700;flex-shrink:0;font-size:13px;">${p.status==='bad'?'✕':'⚠'}</span>
+              <div style="flex:1;">
+                <div style="font-weight:600;">${trItem(p.item_id,p.item_id)}</div>
+                <div style="color:var(--text3);margin-top:1px;">${trArea(p.area_key)}${p.note?` · <em style="color:var(--text2);">"${p.note}"</em>`:''}</div>
+              </div>
+              ${p.photo_base64?'<span style="font-size:14px;">📷</span>':''}
+              ${hasMaint?`<span style="font-size:9px;padding:2px 6px;border:1px solid var(--amber);border-radius:3px;color:var(--amber);white-space:nowrap;">🔧</span>`:''}
+            </div>`;
+          }).join('')}
+        </div>`:''}
+      </div>
+    </div>`;
+  });
+
+  rowsEl.innerHTML=html||'<div style="padding:16px;text-align:center;font-size:12px;color:var(--text3);">No issues found</div>';
+
+  if(moreEl){
+    if(remaining>0&&!showAll){
+      moreEl.innerHTML=`<button onclick="renderWeeklyHistory(true)" style="padding:8px 20px;background:transparent;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;cursor:pointer;color:var(--text2);">Load ${remaining} more week${remaining>1?'s':''} ↓</button>`;
+    } else {
+      moreEl.innerHTML='';
+    }
+  }
+}
+
+function toggleWeekExpand(week){
+  const detail=document.getElementById('week-detail-'+week);
+  const chevron=document.getElementById('chevron-'+week);
+  if(!detail) return;
+  const isOpen=detail.style.display!=='none';
+  detail.style.display=isOpen?'none':'block';
+  if(chevron) chevron.style.transform=isOpen?'':'rotate(180deg)';
+}
+
+async function showCheckinDetail(checkinId){
+  const r=window._checkinDataMap?.[checkinId];
+  if(!r) return;
+  const itemName=trItem(r.item_id,r.item_id);
+  const areaName=trArea(r.area_key);
+  const date=new Date(r.created_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const color=r.status==='bad'?'var(--red)':r.status==='warn'?'var(--amber)':'var(--green)';
+  const icon=r.status==='bad'?'✕':r.status==='warn'?'⚠':'✓';
+
+  let html=`<div style="margin-bottom:12px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:4px;background:${r.status==='bad'?'var(--red-bg)':r.status==='warn'?'var(--amber-bg)':'var(--green-bg)'};color:${color};">${icon} ${r.status.toUpperCase()}</span>
+      <span style="font-size:11px;color:var(--text3);">${areaName} · ${date}</span>
+    </div>
+    ${r.note?`<div style="font-size:13px;font-style:italic;color:var(--text2);margin-bottom:10px;">"${r.note}"</div>`:''}
+    ${r.photo_base64?`<img src="${r.photo_base64}" onclick="showFullPhoto(this.src)" style="width:100%;max-height:260px;object-fit:cover;border-radius:8px;cursor:zoom-in;" />`:''}
+  </div>`;
+
+  // Check if in maintenance
+  const inMaint=window._openMaintKeys?.has(r.area_key+':'+r.item_id);
+  if(currentRole==='admin'&&!inMaint){
+    html+=`<button onclick="moveToMaintenance('${r.id}','${r.item_id}','${r.area_key}','${itemName.replace(/'/g,"\'")}','${areaName}','${r.status}','${(r.note||'').replace(/'/g,"\'")}',${r.photo_base64?`'${r.photo_base64}'`:null});closeModal();" style="width:100%;padding:9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;font-weight:500;cursor:pointer;margin-top:8px;">→ Move to Maintenance</button>`;
+  } else if(inMaint){
+    html+=`<div style="text-align:center;padding:8px;font-size:11px;color:var(--amber);">🔧 Already in Maintenance</div>`;
+  }
+
+  document.getElementById('modal-title').textContent=itemName;
+  document.getElementById('modal-body').innerHTML=html;
+  document.getElementById('modal-btn').textContent='Close';
+  document.getElementById('modal-btn').onclick=closeModal;
+  document.getElementById('modal-btn').className='btn btn-primary';
+  const cancelBtnEl=document.querySelector('#modal .modal-actions .btn-ghost');
+  if(cancelBtnEl) cancelBtnEl.style.display='none';
+  document.getElementById('modal').classList.add('show');
 }
 
 function toggleIssuesOnly(checked){
@@ -3796,11 +3990,8 @@ async function buildMaintenance(){
   const el=document.getElementById('maintenance-content');
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
-  const{data,error}=await sb.from('maintenance_tasks')
-    .select('*')
-    .order('created_at',{ascending:false});
-
-  if(error||!data?.length){
+  const data=await cachedMaintTasks();
+  if(!data?.length){
     el.innerHTML='<div class="empty"><div class="empty-icon">🔧</div><p>No maintenance tasks yet.<br><span style="font-size:11px;color:var(--text3);">Move items from Manager Reports when action is needed.</span></p></div>';
     return;
   }
@@ -3884,7 +4075,7 @@ async function resolveTask(taskId){
     .update({status:'resolved', resolved_at:new Date().toISOString()})
     .eq('id',taskId);
   if(error){showToast('Error: '+error.message);return;}
-  showToast('Task resolved');
+  invalidateCache('maint');showToast('Task resolved');
   buildMaintenance();
   updateMaintenanceBadge();
 }
@@ -3894,6 +4085,49 @@ async function checkAutoResolve(){
   updateMaintenanceBadge();
 }
 
+
+
+// =========================================================
+// CACHE SYSTEM — load once, reuse
+// =========================================================
+var _cache={
+  sessions:null, scores:{}, checkins:null, maintTasks:null,
+  lastFetch:{sessions:0, checkins:0, maint:0}
+};
+const CACHE_TTL=60000; // 1 minute
+
+async function cachedSessions(){
+  if(_cache.sessions&&Date.now()-_cache.lastFetch.sessions<CACHE_TTL) return _cache.sessions;
+  const{data}=await sb.from('audit_sessions').select('*').order('created_at',{ascending:false});
+  _cache.sessions=data||[];
+  _cache.lastFetch.sessions=Date.now();
+  return _cache.sessions;
+}
+
+async function cachedCheckins(){
+  if(_cache.checkins&&Date.now()-_cache.lastFetch.checkins<CACHE_TTL) return _cache.checkins;
+  let q=sb.from('weekly_checkins').select('*').order('created_at',{ascending:false}).limit(600);
+  if(currentRole==='manager') q=q.eq('manager_id',currentUser.id);
+  const{data}=await q;
+  _cache.checkins=data||[];
+  _cache.lastFetch.checkins=Date.now();
+  return _cache.checkins;
+}
+
+async function cachedMaintTasks(){
+  if(_cache.maintTasks&&Date.now()-_cache.lastFetch.maint<CACHE_TTL) return _cache.maintTasks;
+  const{data}=await sb.from('maintenance_tasks').select('*').order('created_at',{ascending:false});
+  _cache.maintTasks=data||[];
+  _cache.lastFetch.maint=Date.now();
+  return _cache.maintTasks;
+}
+
+function invalidateCache(type){
+  if(type==='checkins'){_cache.checkins=null;_cache.lastFetch.checkins=0;}
+  if(type==='sessions'){_cache.sessions=null;_cache.lastFetch.sessions=0;}
+  if(type==='maint'){_cache.maintTasks=null;_cache.lastFetch.maint=0;}
+  if(!type){_cache.sessions=null;_cache.checkins=null;_cache.maintTasks=null;Object.keys(_cache.lastFetch).forEach(k=>_cache.lastFetch[k]=0);}
+}
 
 
 // Apply theme on load
