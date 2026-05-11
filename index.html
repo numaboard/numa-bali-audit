@@ -3260,9 +3260,11 @@ async function buildManagerReports(){
   const el=document.getElementById('manager-reports-content');
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
-  // Fetch only this manager's data (or all if admin)
-  const data=await cachedCheckins();
-  if(!data||!data.length){
+  // Fetch checkins fresh (bypass cache to avoid role conflicts)
+  let mrQuery=sb.from('weekly_checkins').select('*').order('created_at',{ascending:false}).limit(600);
+  if(currentRole==='manager') mrQuery=mrQuery.eq('manager_id',currentUser.id);
+  const{data,error:mrErr}=await mrQuery;
+  if(mrErr||!data||!data.length){
     el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><p>No check-in data yet.</p></div>';
     return;
   }
