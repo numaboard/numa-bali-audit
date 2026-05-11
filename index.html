@@ -1728,9 +1728,9 @@ function setupApp(){
   // Show manager reports for admin AND manager
   const mrSb=document.getElementById('sbitem-manager-reports');
   if(mrSb) mrSb.style.display=(currentRole==='admin'||currentRole==='manager')?'flex':'none';
-  // Show maintenance for admin only
+  // Show maintenance for admin + manager with permission
   const maintSb=document.getElementById('sbitem-maintenance');
-  if(maintSb) maintSb.style.display=currentRole==='admin'?'flex':'none';
+  if(maintSb) maintSb.style.display=(currentRole==='admin'||(currentRole==='manager'&&getManagerPerms().canMaintenance))?'flex':'none';
   // Show manager view card in settings for admin
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
@@ -1742,6 +1742,7 @@ function setupApp(){
     window._managerPerms=p;
     showEl('sbitem-checkin', p.canCheckin);
     showEl('sbitem-manager-reports', p.canManagerReports);
+    showEl('sbitem-maintenance', p.canMaintenance);
     showEl('sbitem-dashboard', p.canDashboard);
     showEl('sbitem-history', p.canHistory);
     showEl('sbitem-start', p.canAudit);
@@ -1789,7 +1790,8 @@ function configureMobileNav(){
     // Build mobile nav based on permissions - max 4 items
     const mnavItems=[];
     if(p.canCheckin) mnavItems.push({id:'mnav-checkin',label:'Check-in',page:'checkin'});
-    if(p.canManagerReports) mnavItems.push({id:'mnav-manager-reports',label:'Reports',page:'manager-reports'});
+    if(p.canManagerReports) mnavItems.push({id:'mnav-reports',label:'Reports',page:'manager-reports'});
+    if(p.canMaintenance) mnavItems.push({id:'mnav-maint',label:'Maint.',page:'maintenance'});
     if(p.canDashboard) mnavItems.push({id:'mnav-dashboard',label:'Dashboard',page:'dashboard'});
     if(p.canHistory) mnavItems.push({id:'mnav-history-m',label:'History',page:'history'});
     mnavItems.push({id:'mnav-settings',label:'Settings',page:'settings'});
@@ -2557,6 +2559,7 @@ function nav(page,el){
     const allowed=['settings'];
     if(p.canCheckin) allowed.push('checkin');
     if(p.canManagerReports) allowed.push('manager-reports');
+    if(p.canMaintenance) allowed.push('maintenance');
     if(p.canDashboard) allowed.push('dashboard');
     if(p.canHistory) allowed.push('history');
     if(p.canAudit){allowed.push('start');Object.keys(AREAS).forEach(k=>allowed.push('area_'+k));}
@@ -3610,6 +3613,7 @@ function filterCoverage(filter){
 var DEFAULT_MANAGER_PERMS={
   canCheckin:true,
   canManagerReports:true,
+  canMaintenance:true,
   canDashboard:false,
   canHistory:false,
   canAudit:false,
@@ -3624,6 +3628,7 @@ async function loadPermissionsCard(){
   const perms=[
     {key:'canCheckin',      label:'Weekly Check-in',    desc:'Submit weekly check-in (29 items/week)',   default:true},
     {key:'canManagerReports',label:'Manager Reports',   desc:'View own check-in history and metrics',    default:true},
+    {key:'canMaintenance',  label:'Maintenance',        desc:'View and resolve maintenance tasks',        default:true},
     {key:'canDashboard',   label:'Overview Dashboard',  desc:'See the main overview dashboard',           default:false},
     {key:'canHistory',     label:'Audit History',       desc:'View past full audit sessions',             default:false},
     {key:'canAudit',       label:'Full Audit',          desc:'Conduct a full property audit',             default:false},
@@ -3646,7 +3651,7 @@ async function loadPermissionsCard(){
 
 async function savePermissions(){
   const perms={};
-  ['canCheckin','canManagerReports','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
+  ['canCheckin','canManagerReports','canMaintenance','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
     const el=document.getElementById('perm-'+k);
     if(el) perms[k]=el.checked;
   });
