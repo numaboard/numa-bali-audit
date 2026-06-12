@@ -4139,32 +4139,33 @@ function invalidateCache(type){
 // =========================================================
 
 const LINEN_ITEMS = [
-  {id:'KIM', name:'Kimono',                   cat:'Kimono/Spa Robes',     first:18,  lifetime:24},
-  {id:'TWL', name:'Towel Large (Bath)',        cat:'Bath Towels',          first:35,  lifetime:18},
-  {id:'PTW', name:'Pool Towel',                cat:'Pool Towels',          first:30,  lifetime:13},
-  {id:'PC1', name:'Pillow Case 58x86',         cat:'Pillow Cases',         first:48,  lifetime:15},
-  {id:'PC2', name:'Pillow Case 50x34',         cat:'Pillow Cases',         first:6,   lifetime:15},
-  {id:'PC3', name:'Pillow Case 54x36',         cat:'Pillow Cases',         first:6,   lifetime:15},
-  {id:'PC4', name:'Pillow Case 62x32',         cat:'Pillow Cases',         first:6,   lifetime:15},
-  {id:'PC5', name:'Pillow Case 68x17',         cat:'Pillow Cases',         first:6,   lifetime:15},
-  {id:'FTW', name:'Face Towel',                cat:'Hand/Face Towels',     first:50,  lifetime:15},
-  {id:'BTM', name:'Bath Mat',                  cat:'Bath Towels',          first:20,  lifetime:18},
-  {id:'DCD', name:'Duvet Cover Double (old)',  cat:'Duvet Covers',         first:12,  lifetime:15},
-  {id:'DCN', name:'Duvet Cover Double (new)',  cat:'Duvet Covers',         first:9,   lifetime:15},
-  {id:'BSD', name:'Bed Sheet Double',          cat:'Bed Sheets',           first:15,  lifetime:15},
-  {id:'FSS', name:'Filled Sheet Single',       cat:'Bed Sheets',           first:4,   lifetime:15},
-  {id:'FLS', name:'Flat Sheet Single',         cat:'Bed Sheets',           first:4,   lifetime:15},
-  {id:'DCS', name:'Duvet Cover Single',        cat:'Duvet Covers',         first:4,   lifetime:15},
-  {id:'TCL', name:'Table Cloth',               cat:'Napkins/Table Cloths', first:4,   lifetime:12},
-  {id:'NAP', name:'Napkin',                    cat:'Napkins/Table Cloths', first:30,  lifetime:12},
-  {id:'TSP', name:'Towel Spa',                 cat:'Spa Items',            first:20,  lifetime:18},
-  {id:'KSP', name:'Kimono Spa',                cat:'Kimono/Spa Robes',     first:12,  lifetime:24},
-  {id:'LSS', name:'Linen Spa Sarong',          cat:'Spa Items',            first:10,  lifetime:18},
-  {id:'LSW', name:'Linen Spa White',           cat:'Spa Items',            first:10,  lifetime:18},
-  {id:'MUT', name:'Make Up Towel',             cat:'Hand/Face Towels',     first:20,  lifetime:15},
-  {id:'NNR', name:'New Napkin Restaurant',     cat:'Napkins/Table Cloths', first:200, lifetime:12},
-  {id:'TCK', name:'Towel Check-in',            cat:'Bath Towels',          first:20,  lifetime:18},
-  {id:'TMD', name:'Towel Medium',              cat:'Bath Towels',          first:30,  lifetime:18},
+  // id, name, cat, firstStock, lifetime(months), currentStock(Jun 2026), refDate
+  {id:'KIM', name:'Kimono',                   cat:'Kimono/Spa Robes',     first:18,  lifetime:24, current:9,   refDate:'2024-07-01'},
+  {id:'TWL', name:'Towel Large (Bath)',        cat:'Bath Towels',          first:35,  lifetime:18, current:18,  refDate:'2024-07-01'},
+  {id:'PTW', name:'Pool Towel',                cat:'Pool Towels',          first:30,  lifetime:13, current:12,  refDate:'2024-07-01'},
+  {id:'PC1', name:'Pillow Case 58x86',         cat:'Pillow Cases',         first:48,  lifetime:15, current:15,  refDate:'2024-07-01'},
+  {id:'PC2', name:'Pillow Case 50x34',         cat:'Pillow Cases',         first:6,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'PC3', name:'Pillow Case 54x36',         cat:'Pillow Cases',         first:6,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'PC4', name:'Pillow Case 62x32',         cat:'Pillow Cases',         first:6,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'PC5', name:'Pillow Case 68x17',         cat:'Pillow Cases',         first:6,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'FTW', name:'Face Towel',                cat:'Hand/Face Towels',     first:50,  lifetime:15, current:12,  refDate:'2024-07-01'},
+  {id:'BTM', name:'Bath Mat',                  cat:'Bath Towels',          first:20,  lifetime:18, current:13,  refDate:'2024-07-01'},
+  {id:'DCD', name:'Duvet Cover Double (old)',  cat:'Duvet Covers',         first:12,  lifetime:15, current:3,   refDate:'2024-07-01'},
+  {id:'DCN', name:'Duvet Cover Double (new)',  cat:'Duvet Covers',         first:9,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'BSD', name:'Bed Sheet Double',          cat:'Bed Sheets',           first:15,  lifetime:15, current:8,   refDate:'2024-07-01'},
+  {id:'FSS', name:'Filled Sheet Single',       cat:'Bed Sheets',           first:4,   lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'FLS', name:'Flat Sheet Single',         cat:'Bed Sheets',           first:4,   lifetime:15, current:4,   refDate:'2024-07-01'},
+  {id:'DCS', name:'Duvet Cover Single',        cat:'Duvet Covers',         first:4,   lifetime:15, current:4,   refDate:'2024-07-01'},
+  {id:'TCL', name:'Table Cloth',               cat:'Napkins/Table Cloths', first:4,   lifetime:12, current:2,   refDate:'2024-07-01'},
+  {id:'NAP', name:'Napkin',                    cat:'Napkins/Table Cloths', first:30,  lifetime:12, current:30,  refDate:'2024-07-01'},
+  {id:'TSP', name:'Towel Spa',                 cat:'Spa Items',            first:20,  lifetime:18, current:10,  refDate:'2024-07-01'},
+  {id:'KSP', name:'Kimono Spa',                cat:'Kimono/Spa Robes',     first:12,  lifetime:24, current:12,  refDate:'2024-07-01'},
+  {id:'LSS', name:'Linen Spa Sarong',          cat:'Spa Items',            first:10,  lifetime:18, current:12,  refDate:'2024-07-01'},
+  {id:'LSW', name:'Linen Spa White',           cat:'Spa Items',            first:10,  lifetime:18, current:1,   refDate:'2024-07-01'},
+  {id:'MUT', name:'Make Up Towel',             cat:'Hand/Face Towels',     first:20,  lifetime:15, current:6,   refDate:'2024-07-01'},
+  {id:'NNR', name:'New Napkin Restaurant',     cat:'Napkins/Table Cloths', first:200, lifetime:12, current:200, refDate:'2024-07-01'},
+  {id:'TCK', name:'Towel Check-in',            cat:'Bath Towels',          first:20,  lifetime:18, current:20,  refDate:'2024-07-01'},
+  {id:'TMD', name:'Towel Medium',              cat:'Bath Towels',          first:30,  lifetime:18, current:12,  refDate:'2024-07-01'},
 ];
 
 const LINEN_CATEGORIES={
@@ -4189,13 +4190,13 @@ async function buildLinenPage(){
   const el=document.getElementById('linen-tab-check-content');
   el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
 
-  // Load all batches
-  const{data:batches}=await sb.from('linen_batches').select('*').order('purchase_date',{ascending:true});
-  // Load latest check per item
+  // Load latest check per item (use current from LINEN_ITEMS as fallback)
   const{data:lastChecks}=await sb.from('linen_checks').select('*').order('check_date',{ascending:false}).limit(200);
-
   const lastStock={};
   (lastChecks||[]).forEach(r=>{if(!lastStock[r.item_id]) lastStock[r.item_id]=r;});
+  
+  // For batches (used in alerts/history only)
+  const{data:batches}=await sb.from('linen_batches').select('*').order('purchase_date',{ascending:true});
 
   const byCategory={};
   LINEN_ITEMS.forEach(item=>{
@@ -4218,80 +4219,75 @@ async function buildLinenPage(){
 
   Object.keys(byCategory).forEach(cat=>{
     const items=byCategory[cat];
-    html+=`<div style="margin-bottom:20px;">
-      <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding:6px 0;border-bottom:1px solid var(--border);">
-        ${cat} · Lifetime: ${LINEN_CATEGORIES[cat]} months
-      </div>`;
-
-    items.forEach(item=>{
-      const itemBatches=(batches||[]).filter(b=>b.item_id===item.id);
-      const last=lastStock[item.id];
-      const totalStock=itemBatches.length?itemBatches.reduce((s,b)=>s+b.current_qty,0):(last?.current_stock??item.first);
-
-      html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:8px;overflow:hidden;">
-        <div style="padding:10px 14px;display:flex;align-items:center;gap:12px;background:var(--surface2);">
-          <div style="flex:1;font-size:12px;font-weight:600;">${item.name}</div>
-          <div style="font-size:11px;color:var(--text3);">First: ${item.first} · Now: <strong style="color:${totalStock/item.first<0.5?'var(--red)':totalStock/item.first<0.7?'var(--amber)':'var(--text)'};">${totalStock}</strong></div>
-          <button onclick="showAddBatchModal('${item.id}','${item.name}')" style="padding:3px 8px;background:var(--blue-bg);border:1px solid var(--blue);border-radius:4px;font-size:10px;cursor:pointer;color:var(--blue);">+ Batch</button>
-        </div>`;
-
-      if(itemBatches.length){
-        html+=`<div style="padding:8px 14px;">
-          <table style="width:100%;border-collapse:collapse;font-size:11px;">
-            <thead><tr>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Batch</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Purchase Date</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Age</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Orig.</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Current</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Retire</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Photo</th>
-              <th style="text-align:left;padding:4px 8px;color:var(--text3);font-size:9px;text-transform:uppercase;">Note</th>
-            </tr></thead>
-            <tbody>
-            ${itemBatches.map((b,bi)=>{
-              const months=Math.floor((Date.now()-new Date(b.purchase_date))/2629800000);
-              const ageColor=months>b.lifetime_months?'var(--red)':months>b.lifetime_months*0.8?'var(--amber)':'var(--green)';
-              return`<tr style="border-top:1px solid var(--border);">
-                <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;color:var(--text3);">#${bi+1}</td>
-                <td style="padding:6px 8px;">${new Date(b.purchase_date).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</td>
-                <td style="padding:6px 8px;font-weight:600;color:${ageColor};">${months}mo</td>
-                <td style="padding:6px 8px;font-family:'JetBrains Mono',monospace;">${b.original_qty}</td>
-                <td style="padding:6px 8px;">
-                  <input type="number" min="0" max="${b.current_qty}" value="${b.current_qty}" id="linen-curr-${b.id}"
-                    style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:'JetBrains Mono',monospace;">
-                </td>
-                <td style="padding:6px 8px;">
-                  <input type="number" min="0" value="0" id="linen-ret-${b.id}"
-                    style="width:50px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:11px;font-family:'JetBrains Mono',monospace;"
-                    oninput="onRetireInput('${b.id}',${b.lifetime_months},${months})">
-                </td>
-                <td style="padding:6px 8px;">
-                  <label style="cursor:pointer;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text3);">
-                    <input type="file" accept="image/*" capture="environment" style="display:none;" id="linen-photo-input-${b.id}" onchange="attachLinenPhoto('${b.id}',this)">
-                    <span id="linen-photo-btn-${b.id}" style="padding:2px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:10px;">📷</span>
-                    <span id="linen-photo-status-${b.id}" style="font-size:9px;color:var(--text3);"></span>
-                  </label>
-                </td>
-                <td style="padding:6px 8px;">
-                  <input type="text" placeholder="Note..." id="linen-note-${b.id}"
-                    style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:10px;">
-                </td>
-              </tr>`;
-            }).join('')}
-            </tbody>
-          </table>
-        </div>`;
-      } else {
-        html+=`<div style="padding:10px 14px;font-size:11px;color:var(--text3);">No batches yet. <button onclick="showAddBatchModal('${item.id}','${item.name}')" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:11px;">Add first batch →</button></div>`;
-      }
-      html+=`</div>`;
-    });
-    html+=`</div>`;
+    html+=`<div class="table-wrap" style="margin-bottom:16px;">
+      <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">${cat}</span>
+        <span style="font-size:10px;color:var(--text3);">Lifetime max: ${LINEN_CATEGORIES[cat]} months</span>
+      </div>
+      <table><thead><tr>
+        <th>Item</th>
+        <th>First Stock</th>
+        <th>Current</th>
+        <th>Age (est.)</th>
+        <th>Retired this month</th>
+        <th>New stock</th>
+        <th>Photo (if retired)</th>
+        <th>Note</th>
+      </tr></thead><tbody>
+      ${items.map(item=>{
+        const last=lastStock[item.id];
+        const curr=last?.current_stock??item.current;
+        const pct=Math.round(curr/item.first*100);
+        const stockColor=pct<=50?'var(--red)':pct<=70?'var(--amber)':'var(--text)';
+        const ageMonths=Math.floor((Date.now()-new Date(item.refDate))/2629800000);
+        const ageColor=ageMonths>=item.lifetime?'var(--red)':ageMonths>=item.lifetime*0.8?'var(--amber)':'var(--green)';
+        return`<tr>
+          <td style="font-size:12px;font-weight:600;">${item.name}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);">${item.first}</td>
+          <td>
+            <input type="number" min="0" value="${curr}" id="linen-curr-${item.id}"
+              style="width:60px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;color:${stockColor};">
+          </td>
+          <td style="font-size:11px;font-weight:600;color:${ageColor};">${ageMonths}mo <span style="font-weight:400;color:var(--text3);">/ ${item.lifetime}mo</span></td>
+          <td>
+            <input type="number" min="0" value="0" id="linen-ret-${item.id}"
+              style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;"
+              oninput="onRetireInputSimple('${item.id}')">
+          </td>
+          <td>
+            <input type="number" min="0" value="0" id="linen-new-${item.id}"
+              placeholder="0"
+              style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;">
+          </td>
+          <td>
+            <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <input type="file" accept="image/*" capture="environment" style="display:none;" id="linen-photo-input-${item.id}" onchange="attachLinenPhoto('${item.id}',this)">
+              <span id="linen-photo-btn-${item.id}" style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;">📷</span>
+              <span id="linen-photo-status-${item.id}" style="font-size:10px;color:var(--green);"></span>
+            </label>
+          </td>
+          <td>
+            <input type="text" placeholder="Note..." id="linen-note-${item.id}"
+              style="width:130px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:11px;">
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`;
   });
 
   el.innerHTML=html;
   window._linenBatches=batches||[];
+}
+
+function onRetireInputSimple(itemId){
+  const val=parseInt(document.getElementById('linen-ret-'+itemId)?.value||0);
+  const btn=document.getElementById('linen-photo-btn-'+itemId);
+  if(val>0){
+    if(btn){btn.style.borderColor='var(--red)';btn.style.background='var(--red-bg)';}
+  } else {
+    if(btn){btn.style.borderColor='';btn.style.background='var(--surface2)';}
+  }
 }
 
 function onRetireInput(batchId, lifetimeMonths, ageMonths){
@@ -4334,55 +4330,54 @@ function attachLinenPhoto(batchId, input){
 }
 
 async function submitLinenCheck(){
-  const batches=window._linenBatches||[];
   const today=new Date().toISOString().split('T')[0];
   const month=new Date().toISOString().substring(0,7);
   const checkRows=[];
-  const batchUpdates=[];
   let missingPhoto=false;
 
-  for(const b of batches){
-    const currEl=document.getElementById('linen-curr-'+b.id);
-    const retEl=document.getElementById('linen-ret-'+b.id);
+  for(const item of LINEN_ITEMS){
+    const currEl=document.getElementById('linen-curr-'+item.id);
     if(!currEl) continue;
-    const curr=parseInt(currEl.value||b.current_qty);
-    const ret=parseInt(retEl?.value||0);
-    const note=document.getElementById('linen-note-'+b.id)?.value||'';
-    const photo=_linenPhotos[b.id]||null;
+    const curr=parseInt(currEl.value||item.current);
+    const ret=parseInt(document.getElementById('linen-ret-'+item.id)?.value||0);
+    const newStock=parseInt(document.getElementById('linen-new-'+item.id)?.value||0);
+    const note=document.getElementById('linen-note-'+item.id)?.value||'';
+    const photo=_linenPhotos[item.id]||null;
 
     if(ret>0&&!photo){
       missingPhoto=true;
-      const btn=document.getElementById('linen-photo-btn-'+b.id);
+      const btn=document.getElementById('linen-photo-btn-'+item.id);
       if(btn){btn.style.background='var(--red-bg)';btn.style.borderColor='var(--red)';}
     }
 
-    const months=Math.floor((Date.now()-new Date(b.purchase_date))/2629800000);
-    const premature=ret>0&&months<b.lifetime_months*0.6;
+    const ageMonths=Math.floor((Date.now()-new Date(item.refDate))/2629800000);
+    const premature=ret>0&&ageMonths<item.lifetime*0.6;
+    const finalStock=Math.max(0,curr-ret+newStock);
 
     checkRows.push({
-      item_id:b.item_id, item_name:b.item_name||'',
-      category:b.category||'', first_stock:b.original_qty,
-      current_stock:curr, retired_this_month:ret,
-      premature_retirement:premature, lifetime_months:b.lifetime_months,
-      note, photo_base64:photo, batch_id:b.id,
+      item_id:item.id, item_name:item.name,
+      category:item.cat, first_stock:item.first,
+      current_stock:finalStock, retired_this_month:ret,
+      new_stock_added:newStock,
+      premature_retirement:premature, lifetime_months:item.lifetime,
+      note, photo_base64:photo,
       check_date:today, check_month:month, checked_by:currentUser.id
     });
 
-    if(curr!==b.current_qty||ret>0){
-      batchUpdates.push({id:b.id,current_qty:Math.max(0,curr-ret)});
+    // If new stock added, create a batch record
+    if(newStock>0){
+      await sb.from('linen_batches').insert({
+        item_id:item.id, item_name:item.name, category:item.cat,
+        purchase_date:today, original_qty:newStock, current_qty:newStock,
+        lifetime_months:item.lifetime, created_by:currentUser.id
+      });
     }
   }
 
-  if(missingPhoto){showToast('📷 Photo required for retired items');return;}
-  if(!checkRows.length){showToast('No batches to check');return;}
+  if(missingPhoto){showToast('📷 '+tr('photoRequired'));return;}
 
   const{error}=await sb.from('linen_checks').insert(checkRows);
   if(error){showToast('Error: '+error.message);return;}
-
-  // Update batch quantities
-  for(const u of batchUpdates){
-    await sb.from('linen_batches').update({current_qty:u.current_qty}).eq('id',u.id);
-  }
 
   _linenPhotos={};
   showToast('✓ Linen check saved');
