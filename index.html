@@ -4230,7 +4230,6 @@ async function buildLinenPage(){
         <th>Current</th>
         <th>Age (est.)</th>
         <th>Retired this month</th>
-        <th>New stock</th>
         <th>Photo (if retired)</th>
         <th>Note</th>
       </tr></thead><tbody>
@@ -4253,11 +4252,6 @@ async function buildLinenPage(){
             <input type="number" min="0" value="0" id="linen-ret-${item.id}"
               style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;"
               oninput="onRetireInputSimple('${item.id}')">
-          </td>
-          <td>
-            <input type="number" min="0" value="0" id="linen-new-${item.id}"
-              placeholder="0"
-              style="width:55px;background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:4px 6px;font-size:12px;font-family:'JetBrains Mono',monospace;">
           </td>
           <td>
             <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
@@ -4340,7 +4334,7 @@ async function submitLinenCheck(){
     if(!currEl) continue;
     const curr=parseInt(currEl.value||item.current);
     const ret=parseInt(document.getElementById('linen-ret-'+item.id)?.value||0);
-    const newStock=parseInt(document.getElementById('linen-new-'+item.id)?.value||0);
+    const newStock=0; // New stock added via + Batch button
     const note=document.getElementById('linen-note-'+item.id)?.value||'';
     const photo=_linenPhotos[item.id]||null;
 
