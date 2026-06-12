@@ -642,12 +642,14 @@ tbody td{padding:10px 14px;font-size:12px;vertical-align:middle;}
             <p>Monthly stock check — track degradation and lifetime</p>
           </div>
           <div class="btn-row">
-            <button class="filter-btn active" id="linen-tab-check" onclick="showLinenTab('check',this)">Monthly Check</button>
-            <button class="filter-btn" id="linen-tab-history" onclick="showLinenTab('history',this)">History</button>
-            <button class="filter-btn" id="linen-tab-alerts" onclick="showLinenTab('alerts',this)">Alerts</button>
+            <button class="filter-btn active" id="linen-tab-dashboard-btn" onclick="showLinenTab('dashboard',this)">Dashboard</button>
+            <button class="filter-btn" id="linen-tab-check-btn" onclick="showLinenTab('check',this)">Monthly Check</button>
+            <button class="filter-btn" id="linen-tab-history-btn" onclick="showLinenTab('history',this)">History</button>
+            <button class="filter-btn" id="linen-tab-alerts-btn" onclick="showLinenTab('alerts',this)">Alerts</button>
           </div>
         </div>
-        <div id="linen-tab-check-content"></div>
+        <div id="linen-tab-dashboard-content"></div>
+        <div id="linen-tab-check-content" style="display:none;"></div>
         <div id="linen-tab-history-content" style="display:none;"></div>
         <div id="linen-tab-alerts-content" style="display:none;"></div>
       </div>
@@ -1753,9 +1755,9 @@ function setupApp(){
   // Show maintenance for admin + manager with permission
   const maintSb=document.getElementById('sbitem-maintenance');
   if(maintSb) maintSb.style.display=(currentRole==='admin'||(currentRole==='manager'&&getManagerPerms().canMaintenance))?'flex':'none';
-  // Show linen control for admin only
+  // Show linen control for admin + manager with permission
   const linenSb=document.getElementById('sbitem-linen');
-  if(linenSb) linenSb.style.display=currentRole==='admin'?'flex':'none';
+  if(linenSb) linenSb.style.display=(currentRole==='admin'||(currentRole==='manager'&&getManagerPerms().canLinen))?'flex':'none';
   // Show manager view card in settings for admin
   const mvc=document.getElementById('manager-view-card');
   if(mvc) mvc.style.display=currentRole==='admin'?'':'none';
@@ -1768,6 +1770,7 @@ function setupApp(){
     showEl('sbitem-checkin', p.canCheckin);
     showEl('sbitem-manager-reports', p.canManagerReports);
     showEl('sbitem-maintenance', p.canMaintenance);
+    showEl('sbitem-linen', p.canLinen);
     showEl('sbitem-dashboard', p.canDashboard);
     showEl('sbitem-history', p.canHistory);
     showEl('sbitem-start', p.canAudit);
@@ -2585,6 +2588,7 @@ function nav(page,el){
     if(p.canCheckin) allowed.push('checkin');
     if(p.canManagerReports) allowed.push('manager-reports');
     if(p.canMaintenance) allowed.push('maintenance');
+    if(p.canLinen) allowed.push('linen');
     if(p.canDashboard) allowed.push('dashboard');
     if(p.canHistory) allowed.push('history');
     if(p.canAudit){allowed.push('start');Object.keys(AREAS).forEach(k=>allowed.push('area_'+k));}
@@ -2611,7 +2615,7 @@ function nav(page,el){
   if(page==='checkin') buildCheckinPage();
   if(page==='manager-reports') buildManagerReports();
   if(page==='maintenance') buildMaintenance();
-  if(page==='linen') buildLinenPage();
+  if(page==='linen') buildLinenDashboard();
   document.getElementById('sidebar').classList.remove('open');
   closeSidebar();
   setTimeout(applyI18n,50);
@@ -3640,6 +3644,7 @@ var DEFAULT_MANAGER_PERMS={
   canCheckin:true,
   canManagerReports:true,
   canMaintenance:true,
+  canLinen:false,
   canDashboard:false,
   canHistory:false,
   canAudit:false,
@@ -3655,6 +3660,7 @@ async function loadPermissionsCard(){
     {key:'canCheckin',      label:'Weekly Check-in',    desc:'Submit weekly check-in (29 items/week)',   default:true},
     {key:'canManagerReports',label:'Manager Reports',   desc:'View own check-in history and metrics',    default:true},
     {key:'canMaintenance',  label:'Maintenance',        desc:'View and resolve maintenance tasks',        default:true},
+    {key:'canLinen',        label:'Linen Control',      desc:'View and update linen stock',                default:false},
     {key:'canDashboard',   label:'Overview Dashboard',  desc:'See the main overview dashboard',           default:false},
     {key:'canHistory',     label:'Audit History',       desc:'View past full audit sessions',             default:false},
     {key:'canAudit',       label:'Full Audit',          desc:'Conduct a full property audit',             default:false},
@@ -3677,7 +3683,7 @@ async function loadPermissionsCard(){
 
 async function savePermissions(){
   const perms={};
-  ['canCheckin','canManagerReports','canMaintenance','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
+  ['canCheckin','canManagerReports','canMaintenance','canLinen','canDashboard','canHistory','canAudit','canFlags','canSendReport'].forEach(k=>{
     const el=document.getElementById('perm-'+k);
     if(el) perms[k]=el.checked;
   });
@@ -4175,15 +4181,126 @@ const LINEN_CATEGORIES={
 };
 
 function showLinenTab(tab, btn){
-  ['check','history','alerts'].forEach(t=>{
+  ['dashboard','check','history','alerts'].forEach(t=>{
     const el=document.getElementById('linen-tab-'+t+'-content');
     if(el) el.style.display=t===tab?'block':'none';
   });
   document.querySelectorAll('#page-linen .filter-btn').forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
+  if(tab==='dashboard') buildLinenDashboard();
+  if(tab==='check') buildLinenPage();
   if(tab==='history') buildLinenHistory();
   if(tab==='alerts') buildLinenAlerts();
-  if(tab==='check') buildLinenPage();
+}
+
+async function buildLinenDashboard(){
+  const el=document.getElementById('linen-tab-dashboard-content');
+  el.innerHTML='<div class="empty"><div class="empty-icon">◌</div><p>Loading...</p></div>';
+
+  const{data:lastChecks}=await sb.from('linen_checks').select('*').order('check_date',{ascending:false}).limit(200);
+  const lastStock={};
+  (lastChecks||[]).forEach(r=>{if(!lastStock[r.item_id]) lastStock[r.item_id]=r;});
+
+  // Calculate stats
+  let totalItems=LINEN_ITEMS.length;
+  let critical=0,warning=0,healthy=0,neverChecked=0;
+  let totalRetired=0;
+  const byCategory={};
+
+  LINEN_ITEMS.forEach(item=>{
+    const last=lastStock[item.id];
+    const curr=last?.current_stock??item.current;
+    const pct=Math.round(curr/item.first*100);
+    if(!last) neverChecked++;
+    else if(pct<=50) critical++;
+    else if(pct<=70) warning++;
+    else healthy++;
+    if(last?.retired_this_month) totalRetired+=last.retired_this_month;
+    if(!byCategory[item.cat]) byCategory[item.cat]={total:0,curr:0,first:0,items:[]};
+    byCategory[item.cat].total++;
+    byCategory[item.cat].curr+=curr;
+    byCategory[item.cat].first+=item.first;
+    byCategory[item.cat].items.push({...item,curr,pct});
+  });
+
+  const overallPct=Math.round(Object.values(lastStock).length?
+    LINEN_ITEMS.reduce((s,i)=>{const l=lastStock[i.id];return s+(l?.current_stock??i.current)},0)/
+    LINEN_ITEMS.reduce((s,i)=>s+i.first,0)*100 : 
+    LINEN_ITEMS.reduce((s,i)=>s+i.current,0)/LINEN_ITEMS.reduce((s,i)=>s+i.first,0)*100);
+
+  const overallColor=overallPct<=50?'var(--red)':overallPct<=70?'var(--amber)':'var(--green)';
+
+  let html=`
+  <div class="kpi-grid" style="margin-bottom:20px;">
+    <div class="kpi-card">
+      <div class="kpi-label">Overall Stock</div>
+      <div class="kpi-value" style="color:${overallColor};">${overallPct}%</div>
+      <div class="kpi-sub">vs first stock</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Critical (≤50%)</div>
+      <div class="kpi-value r">${critical}</div>
+      <div class="kpi-sub">items need reorder</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Watch (≤70%)</div>
+      <div class="kpi-value a">${warning}</div>
+      <div class="kpi-sub">items to monitor</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Healthy</div>
+      <div class="kpi-value g">${healthy}</div>
+      <div class="kpi-sub">items above 70%</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:20px;">
+    ${Object.keys(byCategory).map(cat=>{
+      const d=byCategory[cat];
+      const pct=Math.round(d.curr/d.first*100);
+      const color=pct<=50?'var(--red)':pct<=70?'var(--amber)':'var(--green)';
+      return`<div class="kpi-card" style="padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:600;">${cat}</div>
+          <div style="font-size:18px;font-weight:700;color:${color};">${pct}%</div>
+        </div>
+        <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:8px;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);">${d.curr} / ${d.first} pieces · ${d.total} items</div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="table-wrap">
+    <div style="padding:10px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;">All Items — Stock Overview</div>
+    <table><thead><tr>
+      <th>Item</th><th>Category</th><th>Current</th><th>First</th><th>%</th><th>Age</th><th>Status</th>
+    </tr></thead><tbody>
+    ${LINEN_ITEMS.map(item=>{
+      const last=lastStock[item.id];
+      const curr=last?.current_stock??item.current;
+      const pct=Math.round(curr/item.first*100);
+      const color=pct<=50?'var(--red)':pct<=70?'var(--amber)':'var(--green)';
+      const ageMonths=Math.floor((Date.now()-new Date(item.refDate))/2629800000);
+      const ageColor=ageMonths>=item.lifetime?'var(--red)':ageMonths>=item.lifetime*0.8?'var(--amber)':'var(--green)';
+      const status=pct<=50?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--red-bg);color:var(--red);font-weight:600;">CRITICAL</span>':
+                   pct<=70?'<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--amber-bg);color:var(--amber);font-weight:600;">WATCH</span>':
+                   '<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:var(--green-bg);color:var(--green);font-weight:600;">OK</span>';
+      return`<tr>
+        <td style="font-size:12px;font-weight:500;">${item.name}</td>
+        <td style="font-size:10px;color:var(--text3);">${item.cat}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-weight:600;color:${color};">${curr}</td>
+        <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3);">${item.first}</td>
+        <td style="font-weight:700;color:${color};">${pct}%</td>
+        <td style="font-size:11px;font-weight:600;color:${ageColor};">${ageMonths}mo</td>
+        <td>${status}</td>
+      </tr>`;
+    }).join('')}
+    </tbody></table>
+  </div>`;
+
+  el.innerHTML=html;
 }
 
 async function buildLinenPage(){
@@ -4208,11 +4325,11 @@ async function buildLinenPage(){
 
   let html=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow);">
     <div>
-      <div style="font-size:13px;font-weight:600;">${tr('monthlyCheck')} — ${today}</div>
+      <div style="font-size:13px;font-weight:600;">${'Monthly Check'} — ${today}</div>
       <div style="font-size:11px;color:var(--text3);margin-top:2px;">Enter current stock. Photo required when retiring items.</div>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="btn btn-ghost" onclick="showAddBatchModal()">+ ${tr('addBatch')}</button>
+      <button class="btn btn-ghost" onclick="showAddBatchModal()">+ ${'+ Add Batch'}</button>
       <button class="btn btn-primary" onclick="submitLinenCheck()">Save Check</button>
     </div>
   </div>`;
@@ -4255,8 +4372,10 @@ async function buildLinenPage(){
           </td>
           <td>
             <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
-              <input type="file" accept="image/*" capture="environment" style="display:none;" id="linen-photo-input-${item.id}" onchange="attachLinenPhoto('${item.id}',this)">
-              <span id="linen-photo-btn-${item.id}" style="padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;">📷</span>
+              <input type="file" accept="image/*" style="display:none;" id="linen-photo-input-${item.id}" onchange="attachLinenPhoto('${item.id}',this)">
+              <input type="file" accept="image/*" capture="environment" style="display:none;" id="linen-photo-cam-${item.id}" onchange="attachLinenPhoto('${item.id}',this)">
+              <span id="linen-photo-btn-${item.id}" onclick="document.getElementById('linen-photo-cam-${item.id}').click()" style="padding:3px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;margin-right:2px;" title="Take photo">📷</span>
+              <span onclick="document.getElementById('linen-photo-input-${item.id}').click()" style="padding:3px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;font-size:11px;cursor:pointer;" title="Choose from library">🖼</span>
               <span id="linen-photo-status-${item.id}" style="font-size:10px;color:var(--green);"></span>
             </label>
           </td>
@@ -4379,7 +4498,7 @@ async function submitLinenCheck(){
 }
 
 function showAddBatchModal(itemId='', itemName=''){
-  document.getElementById('modal-title').textContent=tr('addBatch')+(itemName?' — '+itemName:'');
+  document.getElementById('modal-title').textContent='+ Add Batch'+(itemName?' — '+itemName:'');
   document.getElementById('modal-body').innerHTML=`
     <div style="margin-bottom:10px;">
       <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px;">Item</label>
